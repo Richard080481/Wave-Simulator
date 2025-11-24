@@ -1,3 +1,4 @@
+#version 300 es
 precision highp float;
 
 uniform vec2 iResolution;
@@ -16,6 +17,9 @@ uniform float shipRotation;
 uniform float STAR_DENSITY;
 uniform vec3 camPos;
 uniform vec3 camTarget;
+uniform mat4 uView;
+uniform mat4 uProj;
+out vec4 fragColor;
 
 #define NormalizedMouse (iMouse / iResolution)
 #define DEBUG_MODE (0) // 0 = normal render, 1 = wave height map, 2 = normal vectors
@@ -25,6 +29,16 @@ struct BoatHit {
     vec3 color;      // Final boat color
     float t;         // Distance along ray
 };
+
+// Caculate depth
+float getDepth( vec3 worldPos )
+{
+    vec4 clip = uProj * uView * vec4(worldPos, 1.0);
+    if (abs(clip.w) < 0.00001) return 1.0;
+    float ndc = clip.z / clip.w;
+    float depth = (ndc + 1.0) * 0.5;
+    return clamp(depth, 0.0, 1.0);
+}
 
 // SDF basic shapes
 // Box SDF return distance from point to box
@@ -541,7 +555,8 @@ void main()
         vec3 nebula = generateNebula(ray, sunHeight);
 
         vec3 C = baseColor + twilightColor + sun + stars + nebula;
-        gl_FragColor = vec4(aces_tonemap(C * 2.0), 1.0);
+        gl_FragDepth = 0.99;
+        fragColor = vec4(aces_tonemap(C * 2.0), 1.0);
         return;
     }
     // === NORMAL MODE: Full Water Rendering ===
@@ -563,7 +578,8 @@ void main()
     BoatHit boat = raymarchBoat(origin, ray);
     // Boat is closer than water
     if(boat.hit && boat.t < dist) {
-        gl_FragColor = vec4(boat.color, 1.0);
+        gl_FragDepth = getDepth(origin + ray * boat.t);
+        fragColor = vec4(boat.color, 1.0);
         return;
     }
 
@@ -577,7 +593,7 @@ void main()
         heightNorm = clamp(heightNorm, 0.0, 1.0);
 
         // Simple grayscale
-        gl_FragColor = vec4(vec3(heightNorm), 1.0);
+        fragColor = vec4(vec3(heightNorm), 1.0);
         return;
     }
 
@@ -589,7 +605,7 @@ void main()
 
         // Visualize normals: map from [-1,1] to [0,1]
         vec3 normalVis = N * 0.5 + 0.5;
-        gl_FragColor = vec4(normalVis, 1.0);
+        fragColor = vec4(normalVis, 1.0);
         return;
     }
 
@@ -611,5 +627,6 @@ void main()
     vec3 scattering = vec3(0.0293, 0.0698, 0.1717) * 0.1 * (0.2 + (waterHitPos.y + WATER_DEPTH) / WATER_DEPTH);
 
     vec3 C = fresnel * reflection + scattering;
-    gl_FragColor = vec4(aces_tonemap(C * 2.0), 1.0);
+    gl_FragDepth = getDepth(waterHitPos);
+    fragColor = vec4(aces_tonemap(C * 2.0), 1.0);
 }

@@ -1,5 +1,6 @@
 const canvas = document.getElementById('canvas');
 const gl = canvas.getContext('webgl2');
+gl.getExtension('EXT_frag_depth');
 
 // Prevent the context menu so right-click can be used for dragging
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -277,6 +278,10 @@ Promise.all([
     gl.attachShader(program, fragShader);
     gl.linkProgram(program);
     gl.useProgram(program);
+    const locView = gl.getUniformLocation(program, 'uView');
+    const locProj = gl.getUniformLocation(program, 'uProj');
+    gl.uniformMatrix4fv(locView, false, boatView);
+    gl.uniformMatrix4fv(locProj, false, boatProj);
 
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -389,42 +394,17 @@ Promise.all([
     const startTime = Date.now();
     function animate() {
         const time = (Date.now() - startTime) * 0.001;
+        const shipSpeed = uniforms.boatRotationSpeed / 10.0 || 0.5;
+        const shipRadius = 10.0;
+        const shipX = Math.cos(time * shipSpeed) * shipRadius;
+        const shipZ = Math.sin(time * shipSpeed) * shipRadius;
+        const shipRot = time * shipSpeed;
         camera.eye[1] = uniforms.camHeight;
         boatView = mat4LookAt(camera.eye, camera.center, camera.up);
 
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        gl.disable(gl.DEPTH_TEST);
-        gl.useProgram(program); // SDF shader
-
-        gl.uniform3f(gl.getUniformLocation(program, "camPos"),camera.eye[0], camera.eye[1], camera.eye[2]);
-        gl.uniform3f(gl.getUniformLocation(program, "camTarget"),camera.center[0], camera.center[1], camera.center[2]);
-        gl.uniform2f(gl.getUniformLocation(program, 'iResolution'), canvas.width, canvas.height);
-        gl.uniform1f(gl.getUniformLocation(program, 'iTime'), time);
-        gl.uniform2f(gl.getUniformLocation(program, 'iMouse'), mouseX, mouseY);
-        gl.uniform1f(gl.getUniformLocation(program, 'WATER_DEPTH'), uniforms.waterDepth);
-        gl.uniform1f(gl.getUniformLocation(program, 'CAMERA_HEIGHT'), uniforms.camHeight);
-        gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_RAYMARCH'), uniforms.rayIter);
-        gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_NORMAL'), uniforms.normIter);
-        gl.uniform1f(gl.getUniformLocation(program, 'SUN_ROTATION_SPEED'), uniforms.sunRotationSpeed);
-        gl.uniform1f(gl.getUniformLocation(program, 'STAR_DENSITY'), uniforms.starDensity);
-
-
-        // Calculate ship position moving in circle
-        const shipSpeed = uniforms.boatRotationSpeed / 10.0 || 0.5;
-        const shipRadius = 10.0;
-        const shipX = Math.cos(time * shipSpeed) * shipRadius;
-        const shipZ = Math.sin(time * shipSpeed) * shipRadius;
-        const shipRot = time * shipSpeed;
-        gl.uniform3f(gl.getUniformLocation(program, 'shipPos'), shipX, -0.5, shipZ);
-        gl.uniform1f(gl.getUniformLocation(program, 'shipRadius'), 2.0);
-        gl.uniform1f(gl.getUniformLocation(program, 'shipRotation'), shipRot);
-
-        gl.bindVertexArray(vao);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-        gl.bindVertexArray(null);
 
         if (boatProgram && boatVAO) {
             gl.enable(gl.DEPTH_TEST);
@@ -436,7 +416,7 @@ Promise.all([
 
             // boat model distance from center to bottom
             const yOffset = 3.7021000385284424;
-            const scale = 1.5 / 100.0;
+            const scale = 1.0 / 100.0;
             let shipModelRot = shipRot - Math.PI/2;
             const shipModelX = Math.cos(shipModelRot) * shipRadius;
             const shipModelZ = Math.sin(shipModelRot) * shipRadius;
@@ -445,7 +425,7 @@ Promise.all([
                 scale,0,0,0,
                 0,scale,0,0,
                 0,0,scale,0,
-                -shipModelX, -0.5-yOffset, shipModelZ, 1
+                -shipModelX, -4, shipModelZ, 1
             ]);
             // ship rotate
             shipModelRot = shipModelRot - Math.PI/2;
@@ -469,6 +449,36 @@ Promise.all([
             gl.drawElements(gl.TRIANGLES, boatIndexCount, gl.UNSIGNED_SHORT, 0);
             gl.bindVertexArray(null);
         }
+
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthMask(false);
+        gl.useProgram(program); // SDF shader
+
+        gl.uniform3f(gl.getUniformLocation(program, "camPos"),camera.eye[0], camera.eye[1], camera.eye[2]);
+        gl.uniform3f(gl.getUniformLocation(program, "camTarget"),camera.center[0], camera.center[1], camera.center[2]);
+        gl.uniform2f(gl.getUniformLocation(program, 'iResolution'), canvas.width, canvas.height);
+        gl.uniform1f(gl.getUniformLocation(program, 'iTime'), time);
+        gl.uniform2f(gl.getUniformLocation(program, 'iMouse'), mouseX, mouseY);
+        gl.uniform1f(gl.getUniformLocation(program, 'WATER_DEPTH'), uniforms.waterDepth);
+        gl.uniform1f(gl.getUniformLocation(program, 'CAMERA_HEIGHT'), uniforms.camHeight);
+        gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_RAYMARCH'), uniforms.rayIter);
+        gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_NORMAL'), uniforms.normIter);
+        gl.uniform1f(gl.getUniformLocation(program, 'SUN_ROTATION_SPEED'), uniforms.sunRotationSpeed);
+        gl.uniform1f(gl.getUniformLocation(program, 'STAR_DENSITY'), uniforms.starDensity);
+
+
+        // Calculate ship position moving in circle
+        gl.uniform3f(gl.getUniformLocation(program, 'shipPos'), shipX, -0.5, shipZ);
+        gl.uniform1f(gl.getUniformLocation(program, 'shipRadius'), 2.0);
+        gl.uniform1f(gl.getUniformLocation(program, 'shipRotation'), shipRot);
+
+        gl.uniformMatrix4fv(locView, false, boatView);
+        gl.uniformMatrix4fv(locProj, false, boatProj);
+
+        gl.bindVertexArray(vao);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.bindVertexArray(null);
+        gl.depthMask(true);
 
         requestAnimationFrame(animate);
     }
