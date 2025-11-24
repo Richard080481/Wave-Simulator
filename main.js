@@ -119,27 +119,12 @@ function mat4Multiply(a, b) {
 function mat4Perspective(fovy, aspect, near, far) {
     const f = 1.0 / Math.tan(fovy / 2);
     const nf = 1 / (near - far);
-    const out = new Float32Array(16);
-    out[0] = f / aspect;
-    out[1] = 0;
-    out[2] = 0;
-    out[3] = 0;
-
-    out[4] = 0;
-    out[5] = f;
-    out[6] = 0;
-    out[7] = 0;
-
-    out[8]  = 0;
-    out[9]  = 0;
-    out[10] = (far + near) * nf;
-    out[11] = -1;
-
-    out[12] = 0;
-    out[13] = 0;
-    out[14] = (2 * far * near) * nf;
-    out[15] = 0;
-    return out;
+    return new Float32Array([
+        f / aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (far + near) * nf, -1,
+        0, 0, (2 * far * near) * nf, 0
+    ]);
 }
 
 function mat4LookAt(eye, center, up) {
@@ -172,28 +157,6 @@ function mat4LookAt(eye, center, up) {
     out[14] = -(zx*ex + zy*ey + zz*ez);
     out[15] = 1;
     return out;
-}
-
-function mat4RotateX(angle) {
-    const c = Math.cos(angle);
-    const s = Math.sin(angle);
-    return new Float32Array([
-        1, 0, 0, 0,
-        0, c,-s, 0,
-        0, s, c, 0,
-        0, 0, 0, 1
-    ]);
-}
-
-function mat4RotateY(angle) {
-    const c = Math.cos(angle);
-    const s = Math.sin(angle);
-    return new Float32Array([
-         c, 0, s, 0,
-         0, 1, 0, 0,
-        -s, 0, c, 0,
-         0, 0, 0, 1
-    ]);
 }
 
 function parseOBJ(text) {
@@ -411,8 +374,7 @@ Promise.all([
 
         // Calculate ship position moving in circle
         const shipSpeed = uniforms.boatRotationSpeed / 10.0 || 0.5;
-        const shipRadius = 20.0;
-        const speedshipRadius = 10.0;
+        const shipRadius = 10.0;
         const shipX = Math.cos(time * shipSpeed) * shipRadius;
         const shipZ = Math.sin(time * shipSpeed) * shipRadius;
         const shipRot = time * shipSpeed;
@@ -429,22 +391,29 @@ Promise.all([
             gl.useProgram(boatProgram);
             gl.bindVertexArray(boatVAO);
 
-            const s = 1.0 / 1000.0;
-            const scale = new Float32Array([
-                s,0,0,0,
-                0,s,0,0,
-                0,0,s,0,
-                0,0,0,1
+            // boat model distance from center to bottom
+            const yOffset = 3.7021000385284424;
+            const scale = 2.0 / 1000.0;
+            let shipModelRot = shipRot - Math.PI/2;
+            const shipModelX = Math.cos(shipModelRot) * shipRadius;
+            const shipModelZ = Math.sin(shipModelRot) * shipRadius;
+            // world translation model
+            const worldTranslate = new Float32Array([
+                scale,0,0,0,
+                0,scale,0,0,
+                0,0,scale,0,
+                -shipModelX, -0.5-yOffset, shipModelZ, 1
             ]);
-            const rotX = mat4RotateX(Math.PI / 2);     // 90°
-            const rotY = mat4RotateY(Math.PI / 2);     // 90°
-            let model = mat4Multiply(rotX, rotY);
-            model = mat4Multiply(scale, model);
+            // ship rotate
+            shipModelRot = shipModelRot - Math.PI/2;
+            const rot = new Float32Array([
+                Math.cos(shipModelRot), 0.0, -Math.sin(shipModelRot),0,
+                0.0, 1.0, 0.0, 0,
+                Math.sin(shipModelRot), 0.0, Math.cos(shipModelRot), 0,
+                0, 0, 0, 1
+            ]);
 
-            model[12] = 0.0;  // x
-            model[13] = 0.0;  // y
-            model[14] = 180.0 * s;  // z
-            boatModel = model;
+            boatModel = mat4Multiply(rot, worldTranslate);
 
             gl.uniformMatrix4fv(boat_uModel, false, boatModel);
             gl.uniformMatrix4fv(boat_uView,  false, boatView);
