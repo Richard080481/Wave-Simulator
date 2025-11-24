@@ -162,8 +162,10 @@ function mat4LookAt(eye, center, up) {
 function parseOBJ(text) {
     const positions = [];
     const normals = [];
+    const uvs = [];
     const finalPositions = [];
     const finalNormals = [];
+    const finalUVs = [];
     const indices = [];
 
     const lines = text.split('\n');
@@ -171,27 +173,33 @@ function parseOBJ(text) {
     let indexCounter = 0;
 
     function getVertexIndex(vStr) {
-        // 支持 v//n 或 v/vt/n 或 v
         let [vIdxStr, vtIdxStr, nIdxStr] = vStr.split('/');
         const vIdx = parseInt(vIdxStr, 10);
+        const vtIdx = vtIdxStr ? parseInt(vtIdxStr, 10) : null;
         const nIdx = nIdxStr ? parseInt(nIdxStr, 10) : null;
 
         const key = vStr;
-        if (vertexMap.has(key)) {
-            return vertexMap.get(key);
-        }
+        if (vertexMap.has(key)) return vertexMap.get(key);
+
         const px = positions[(vIdx - 1)*3 + 0];
         const py = positions[(vIdx - 1)*3 + 1];
         const pz = positions[(vIdx - 1)*3 + 2];
 
+        let u = 0, v = 0;
+        if (vtIdx != null) {
+            u = uvs[(vtIdx - 1)*2 + 0];
+            v = uvs[(vtIdx - 1)*2 + 1];
+        }
+
         let nx = 0, ny = 0, nz = 1;
-        if (nIdx != null && normals.length >= nIdx*3) {
+        if (nIdx != null) {
             nx = normals[(nIdx - 1)*3 + 0];
             ny = normals[(nIdx - 1)*3 + 1];
             nz = normals[(nIdx - 1)*3 + 2];
         }
 
         finalPositions.push(px, py, pz);
+        finalUVs.push(u, v);
         finalNormals.push(nx, ny, nz);
 
         vertexMap.set(key, indexCounter);
@@ -200,31 +208,52 @@ function parseOBJ(text) {
 
     for (let line of lines) {
         line = line.trim();
-        if (line.startsWith('#') || line === '') continue;
+        if (line.startsWith('#') || line.length === 0) continue;
         const parts = line.split(/\s+/);
+
         if (parts[0] === 'v') {
             positions.push(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
-        } else if (parts[0] === 'vn') {
+        } 
+        else if (parts[0] === 'vt') {
+            uvs.push(parseFloat(parts[1]), 1.0 - parseFloat(parts[2]));
+        }
+        else if (parts[0] === 'vn') {
             normals.push(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
-        } else if (parts[0] === 'f') {
-            if (parts.length < 4) continue;
+        }
+        else if (parts[0] === 'f') {
             const i0 = getVertexIndex(parts[1]);
             const i1 = getVertexIndex(parts[2]);
             const i2 = getVertexIndex(parts[3]);
             indices.push(i0, i1, i2);
-
-            if (parts.length === 5) {
-                const i3 = getVertexIndex(parts[4]);
-                indices.push(i0, i2, i3);
-            }
         }
     }
 
     return {
         positions: new Float32Array(finalPositions),
         normals: new Float32Array(finalNormals),
+        uvs: new Float32Array(finalUVs),
         indices: new Uint16Array(indices)
     };
+}
+
+function loadTexture(url) {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    const img = new Image();
+    img.onload = () => {
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.generateMipmap(gl.TEXTURE_2D);
+    };
+    img.src = url;
+
+    return tex;
 }
 
 // Load shader files
@@ -279,14 +308,20 @@ Promise.all([
 
     const boatVBO = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, boatVBO);
-    const boatVertexData = new Float32Array(boatMesh.positions.length + boatMesh.normals.length);
-    for (let i = 0, j = 0; i < boatMesh.positions.length/3; i++) {
-        boatVertexData[j++] = boatMesh.positions[i*3 + 0];
-        boatVertexData[j++] = boatMesh.positions[i*3 + 1];
-        boatVertexData[j++] = boatMesh.positions[i*3 + 2];
-        boatVertexData[j++] = boatMesh.normals[i*3 + 0];
-        boatVertexData[j++] = boatMesh.normals[i*3 + 1];
-        boatVertexData[j++] = boatMesh.normals[i*3 + 2];
+    const vertexCount = boatMesh.positions.length / 3;
+    const boatVertexData = new Float32Array(vertexCount * 8);
+
+    for (let i = 0; i < vertexCount; i++) {
+        boatVertexData[i*8 + 0] = boatMesh.positions[i*3 + 0];
+        boatVertexData[i*8 + 1] = boatMesh.positions[i*3 + 1];
+        boatVertexData[i*8 + 2] = boatMesh.positions[i*3 + 2];
+
+        boatVertexData[i*8 + 3] = boatMesh.normals[i*3 + 0];
+        boatVertexData[i*8 + 4] = boatMesh.normals[i*3 + 1];
+        boatVertexData[i*8 + 5] = boatMesh.normals[i*3 + 2];
+
+        boatVertexData[i*8 + 6] = boatMesh.uvs[i*2 + 0];
+        boatVertexData[i*8 + 7] = boatMesh.uvs[i*2 + 1];
     }
     gl.bufferData(gl.ARRAY_BUFFER, boatVertexData, gl.STATIC_DRAW);
 
@@ -298,11 +333,14 @@ Promise.all([
     // setup attributes
     const boatPosLoc = gl.getAttribLocation(boatProgram, 'position');
     const boatNormalLoc = gl.getAttribLocation(boatProgram, 'normal');
-    const stride = 6 * 4; // 6 floats * 4 bytes
+    const boatUVLoc = gl.getAttribLocation(boatProgram, 'uv');
+    const stride = 8 * 4; // 6 floats * 4 bytes
     gl.enableVertexAttribArray(boatPosLoc);
     gl.vertexAttribPointer(boatPosLoc, 3, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(boatNormalLoc);
     gl.vertexAttribPointer(boatNormalLoc, 3, gl.FLOAT, false, stride, 3*4);
+    gl.enableVertexAttribArray(boatUVLoc);
+    gl.vertexAttribPointer(boatUVLoc, 2, gl.FLOAT, false, stride, 6*4);
 
     gl.bindVertexArray(null);
 
@@ -313,6 +351,8 @@ Promise.all([
     boat_uProj  = gl.getUniformLocation(boatProgram, 'uProj');
     boat_uColor = gl.getUniformLocation(boatProgram, 'uColor');
     boat_uLightDir = gl.getUniformLocation(boatProgram, 'uLightDir');
+    const boatTexture = loadTexture('boat_d.jpg');
+    const boat_uTexture = gl.getUniformLocation(boatProgram, 'uTexture');
 
     // simple camera setup
     boatView = mat4LookAt(camera.eye, camera.center, camera.up);
@@ -390,10 +430,13 @@ Promise.all([
             gl.enable(gl.DEPTH_TEST);
             gl.useProgram(boatProgram);
             gl.bindVertexArray(boatVAO);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, boatTexture);
+            gl.uniform1i(boat_uTexture, 0);
 
             // boat model distance from center to bottom
             const yOffset = 3.7021000385284424;
-            const scale = 2.0 / 1000.0;
+            const scale = 1.5 / 100.0;
             let shipModelRot = shipRot - Math.PI/2;
             const shipModelX = Math.cos(shipModelRot) * shipRadius;
             const shipModelZ = Math.sin(shipModelRot) * shipRadius;

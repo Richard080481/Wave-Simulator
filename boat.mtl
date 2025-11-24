@@ -1,0 +1,8 @@
+newmtl boat_INST
+    Ka 1.000 1.000 1.000
+    Kd 1.000 1.000 1.000
+    Ks 0.000 0.000 0.000
+    Ns 10.000
+
+    map_Kd boat_d.jpeg
+    map_Bump boat_n.jpeg
