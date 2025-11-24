@@ -555,7 +555,7 @@ void main()
         vec3 nebula = generateNebula(ray, sunHeight);
 
         vec3 C = baseColor + twilightColor + sun + stars + nebula;
-        gl_FragDepth = 0.99;
+        gl_FragDepth = 0.99999;
         fragColor = vec4(aces_tonemap(C * 2.0), 1.0);
         return;
     }
@@ -627,6 +627,6 @@ void main()
     vec3 scattering = vec3(0.0293, 0.0698, 0.1717) * 0.1 * (0.2 + (waterHitPos.y + WATER_DEPTH) / WATER_DEPTH);
 
     vec3 C = fresnel * reflection + scattering;
-    gl_FragDepth = getDepth(waterHitPos);
+    gl_FragDepth = min(getDepth(waterHitPos),0.99999);
     fragColor = vec4(aces_tonemap(C * 2.0), 1.0);
 }
