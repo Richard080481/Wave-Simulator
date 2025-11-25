@@ -22,7 +22,7 @@ const uniforms = {
 };
 
 const camera = {
-    eye:    [0, 1, -3],
+    eye:    [0, 8, -15],
     center: [0, 1, 0],
     up:     [0, 1, 0],
 };
@@ -34,6 +34,14 @@ let boatModel = mat4Identity();
 let boatView = mat4Identity();
 let boatProj = mat4Identity();
 let boat_uModel, boat_uView, boat_uProj, boat_uColor, boat_uLightDir;
+let pitchAngle = 0;
+let pitchVelocity = 0;
+let rollAngle = 0;
+let rollVelocity = 0;
+const pitchDamping = 1.8;
+const rollDamping  = 1.8;
+const pitchStiffness = 2.2;
+const rollStiffness  = 2.2;
 
 // Update display values
 document.getElementById('waterDepth').addEventListener('input', e => {
@@ -466,10 +474,17 @@ Promise.all([
         }
     });
 
+    const slider = document.getElementById('boatRotationSpeed');
+    uniforms.boatRotationSpeed = parseFloat(slider.value);
+    document.getElementById('boatSpeedVal').textContent = slider.value;
     const startTime = Date.now();
     function animate() {
         const time = (Date.now() - startTime) * 0.001;
-        const shipSpeed = uniforms.boatRotationSpeed / 10.0 || 0.5;
+        const sliderValue = uniforms.boatRotationSpeed;
+        const t = sliderValue / 10.0;
+        const minSpeed = 0.01;
+        const maxSpeed = 1.0;
+        const shipSpeed = minSpeed + t * (maxSpeed - minSpeed);
         const shipRadius = 6.0;
         const shipX = Math.cos(time * shipSpeed) * shipRadius;
         const shipZ = Math.sin(time * shipSpeed) * shipRadius;
@@ -497,8 +512,9 @@ Promise.all([
             const scale = 1.5 / 100.0;
             const shipModelX = Math.cos(time * shipSpeed - Math.PI/2) * shipRadius;
             const shipModelZ = Math.sin(time * shipSpeed - Math.PI/2) * shipRadius;
+            const yOffset = 25.895000457763672;
             const waveH = getWavesHeight([shipModelX, shipModelZ], time, uniforms.normIter);
-            const waterY = waveH * uniforms.waterDepth - uniforms.waterDepth;
+            const waterY = waveH * uniforms.waterDepth - uniforms.waterDepth - yOffset * scale * 0.5;
             // world translation model
             const worldTranslate = new Float32Array([
                 scale,0,0,0,
@@ -508,15 +524,42 @@ Promise.all([
             ]);
             // ship rotate
             const shipModelRot = -(time * shipSpeed + Math.PI);
+            //calculate pitch and roll
+            const delta = 0.3;
+            const frontH = getWavesHeight([shipModelX + Math.cos(shipModelRot)*delta,shipModelZ + Math.sin(shipModelRot)*delta], time, uniforms.normIter);
+            const backH  = getWavesHeight([shipModelX - Math.cos(shipModelRot)*delta,shipModelZ - Math.sin(shipModelRot)*delta], time, uniforms.normIter);
+            const leftH  = getWavesHeight([shipModelX - Math.sin(shipModelRot)*delta,shipModelZ + Math.cos(shipModelRot)*delta],time, uniforms.normIter);
+            const rightH = getWavesHeight([shipModelX + Math.sin(shipModelRot)*delta,shipModelZ - Math.cos(shipModelRot)*delta], time, uniforms.normIter);
+            const pitchForce = (frontH - backH) * pitchStiffness;;
+            const rollForce  = (leftH - rightH) * rollStiffness;
+            const dt = 0.016;
+            const pitchRestoring = 2.5;
+            const rollRestoring  = 2.5;
+            pitchVelocity += (pitchForce - pitchAngle * pitchRestoring - pitchVelocity * pitchDamping) * dt;
+            rollVelocity  += (rollForce  - rollAngle  * rollRestoring  - rollVelocity  * rollDamping)  * dt;
+            pitchAngle += pitchVelocity * dt;
+            rollAngle  += rollVelocity  * dt;
+            const pitch = pitchAngle;
+            const roll  = rollAngle;
             const rot = new Float32Array([
                 Math.cos(shipModelRot), 0.0, -Math.sin(shipModelRot),0,
                 0.0, 1.0, 0.0, 0,
                 Math.sin(shipModelRot), 0.0, Math.cos(shipModelRot), 0,
                 0, 0, 0, 1
             ]);
-
-            boatModel = mat4Multiply(rot, worldTranslate);
-            // boatModel = worldTranslate;
+            const rotX = new Float32Array([
+                1.0, 0.0, 0.0, 0,
+                0.0, Math.cos(pitch), -Math.sin(pitch), 0,
+                0.0, Math.sin(pitch), Math.cos(pitch), 0,
+                0, 0, 0, 1
+            ]);
+            const rotZ = new Float32Array([
+                Math.cos(roll), -Math.sin(roll), 0.0, 0,
+                Math.sin(roll), Math.cos(roll), 0.0, 0,
+                0.0, 0.0, 1.0, 0,
+                0, 0, 0, 1
+            ]);
+            boatModel = mat4Multiply(rotZ,mat4Multiply(rotX,mat4Multiply(rot, worldTranslate)));
 
             gl.uniformMatrix4fv(boat_uModel, false, boatModel);
             gl.uniformMatrix4fv(boat_uView,  false, boatView);
@@ -547,7 +590,6 @@ Promise.all([
         gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_NORMAL'), uniforms.normIter);
         gl.uniform1f(gl.getUniformLocation(program, 'SUN_ROTATION_SPEED'), uniforms.sunRotationSpeed);
         gl.uniform1f(gl.getUniformLocation(program, 'STAR_DENSITY'), uniforms.starDensity);
-
 
         // Calculate ship position moving in circle
         gl.uniform3f(gl.getUniformLocation(program, 'shipPos'), shipX, watersdfY, shipZ);
