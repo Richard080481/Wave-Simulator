@@ -19,6 +19,8 @@ uniform vec3 camPos;
 uniform vec3 camTarget;
 uniform mat4 uView;
 uniform mat4 uProj;
+uniform mat4 uInvView;
+uniform mat4 uInvProj;
 out vec4 fragColor;
 
 #define NormalizedMouse (iMouse / iResolution)
@@ -343,15 +345,28 @@ mat3 createRotationMatrixAxisAngle(vec3 axis, float angle)
 }
 
 // Helper function that generates camera ray based on UV and mouse
+// vec3 getRay(vec2 fragCoord)
+// {
+//     vec2 uv = ((fragCoord / iResolution) * 2.0 - 1.0) * vec2(iResolution.x / iResolution.y, 1.0);
+//     // for fisheye, uncomment following line and comment the next one
+//     // vec3 proj = normalize(vec3(uv.x, uv.y, 1.0) + vec3(uv.x, uv.y, -1.0) * pow(length(uv), 2.0) * 0.05);
+//     vec3 proj = normalize(vec3(uv.x, uv.y, 1.5));
+//     return createRotationMatrixAxisAngle(vec3(0.0, -1.0, 0.0), 3.0 * ((NormalizedMouse.x + 0.5) * 2.0 - 1.0))
+//         * createRotationMatrixAxisAngle(vec3(1.0, 0.0, 0.0), 0.5 + 1.5 * (((NormalizedMouse.y == 0.0 ? 0.27 : NormalizedMouse.y) * 1.0) * 2.0 - 1.0))
+//         * proj;
+// }
 vec3 getRay(vec2 fragCoord)
 {
-    vec2 uv = ((fragCoord / iResolution) * 2.0 - 1.0) * vec2(iResolution.x / iResolution.y, 1.0);
-    // for fisheye, uncomment following line and comment the next one
-    // vec3 proj = normalize(vec3(uv.x, uv.y, 1.0) + vec3(uv.x, uv.y, -1.0) * pow(length(uv), 2.0) * 0.05);
-    vec3 proj = normalize(vec3(uv.x, uv.y, 1.5));
-    return createRotationMatrixAxisAngle(vec3(0.0, -1.0, 0.0), 3.0 * ((NormalizedMouse.x + 0.5) * 2.0 - 1.0))
-        * createRotationMatrixAxisAngle(vec3(1.0, 0.0, 0.0), 0.5 + 1.5 * (((NormalizedMouse.y == 0.0 ? 0.27 : NormalizedMouse.y) * 1.0) * 2.0 - 1.0))
-        * proj;
+    // Convert fragment coordinate to NDC space
+    vec2 ndc = (fragCoord / iResolution) * 2.0 - 1.0;
+    // Convert NDC to clip space
+    vec4 clip = vec4(ndc, -1.0, 1.0);
+    // Convert clip space to view space
+    vec4 viewRay = uInvProj * clip;
+    viewRay /= viewRay.w;
+    // Convert view space to world space
+    vec4 worldRay = uInvView * vec4(viewRay.xyz, 0.0);
+    return normalize(worldRay.xyz);
 }
 
 // Ray-Plane intersection checker
@@ -493,6 +508,20 @@ BoatHit raymarchBoat(vec3 origin, vec3 ray) {
     return result;
 }
 
+// Foam
+float foamFromBoat(vec3 worldPos, vec3 boatPos)
+{
+    float d = length(worldPos.xz - boatPos.xz);
+    vec2 dir = normalize(worldPos.xz - boatPos.xz);
+    vec2 boatDir = vec2(cos(shipRotation), sin(shipRotation));
+    float front = dot(dir, boatDir);
+    float tailMask = smoothstep(0.0, -0.3, front);
+    float width = 1.5;
+    float foam = exp(-d * width) * tailMask;
+    foam *= 0.5 + 0.5 * noise(worldPos.xz * 3.0 + iTime * 0.8);
+    return foam;
+}
+
 void main()
 {
     vec3 ray = getRay(gl_FragCoord.xy);
@@ -626,7 +655,14 @@ void main()
     vec3 reflection = getAtmosphere(R) + getSun(R);
     vec3 scattering = vec3(0.0293, 0.0698, 0.1717) * 0.1 * (0.2 + (waterHitPos.y + WATER_DEPTH) / WATER_DEPTH);
 
+    // foam
+    float foam = foamFromBoat(waterHitPos, shipPos);
+    vec3 foamColor = vec3(0.77f, 0.87f, 0.98f);
+    float foamIntensity = clamp(foam * 0.5, 0.0, 0.7);
+    float sunLit = max(dot(N, normalize(getSunDirection())), 0.0);
+    foamIntensity *= mix(0.4, 1.0, sunLit);
     vec3 C = fresnel * reflection + scattering;
+    C = mix(C, foamColor, foamIntensity);
     gl_FragDepth = min(getDepth(waterHitPos),0.99999);
     fragColor = vec4(aces_tonemap(C * 2.0), 1.0);
 }

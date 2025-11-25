@@ -23,7 +23,7 @@ const uniforms = {
 
 const camera = {
     eye:    [0, 1, -3],
-    center: [0, 0, 0],
+    center: [0, 1, 0],
     up:     [0, 1, 0],
 };
 
@@ -92,6 +92,46 @@ function compileShader(type, source) {
         console.error(gl.getShaderInfoLog(shader));
     }
     return shader;
+}
+
+function mat4Inverse(m) {
+    const out = new Float32Array(16);
+    const a = m;
+
+    const b00 = a[0] * a[5] - a[1] * a[4];
+    const b01 = a[0] * a[6] - a[2] * a[4];
+    const b02 = a[0] * a[7] - a[3] * a[4];
+    const b03 = a[1] * a[6] - a[2] * a[5];
+    const b04 = a[1] * a[7] - a[3] * a[5];
+    const b05 = a[2] * a[7] - a[3] * a[6];
+    const b06 = a[8] * a[13] - a[9] * a[12];
+    const b07 = a[8] * a[14] - a[10] * a[12];
+    const b08 = a[8] * a[15] - a[11] * a[12];
+    const b09 = a[9] * a[14] - a[10] * a[13];
+    const b10 = a[9] * a[15] - a[11] * a[13];
+    const b11 = a[10] * a[15] - a[11] * a[14];
+
+    let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    det = 1.0 / det;
+
+    out[0] = ( a[5] * b11 - a[6] * b10 + a[7] * b09) * det;
+    out[1] = (-a[1] * b11 + a[2] * b10 - a[3] * b09) * det;
+    out[2] = ( a[13] * b05 - a[14] * b04 + a[15] * b03) * det;
+    out[3] = (-a[9] * b05 + a[10] * b04 - a[11] * b03) * det;
+    out[4] = (-a[4] * b11 + a[6] * b08 - a[7] * b07) * det;
+    out[5] = ( a[0] * b11 - a[2] * b08 + a[3] * b07) * det;
+    out[6] = (-a[12] * b05 + a[14] * b02 - a[15] * b01) * det;
+    out[7] = ( a[8] * b05 - a[10] * b02 + a[11] * b01) * det;
+    out[8] = ( a[4] * b10 - a[5] * b08 + a[7] * b06) * det;
+    out[9] = (-a[0] * b10 + a[1] * b08 - a[3] * b06) * det;
+    out[10] = ( a[12] * b04 - a[13] * b02 + a[15] * b00) * det;
+    out[11] = (-a[8] * b04 + a[9] * b02 - a[11] * b00) * det;
+    out[12] = (-a[4] * b09 + a[5] * b07 - a[6] * b06) * det;
+    out[13] = ( a[0] * b09 - a[1] * b07 + a[2] * b06) * det;
+    out[14] = (-a[12] * b03 + a[13] * b01 - a[14] * b00) * det;
+    out[15] = ( a[8] * b03 - a[9] * b01 + a[10] * b00) * det;
+
+    return out;
 }
 
 function mat4Identity() {
@@ -257,6 +297,41 @@ function loadTexture(url) {
     return tex;
 }
 
+// caculate SDF wave height
+// single wave
+function getwave(position, direction, frequency, timeshift) {
+    let x = (direction[0]*position[0] + direction[1]*position[1]) * frequency + timeshift;
+    let wave = Math.exp(Math.sin(x) - 1.0);
+    let dx = wave * Math.cos(x);
+    return [wave, -dx];
+}
+
+function getWavesHeight(position, time, ITER) {
+    let wavePhaseShift = Math.hypot(position[0], position[1]) * 0.1;
+    let iter = 0.0;
+    let frequency = 1.0;
+    let timeMultiplier = 2.0;
+    let weight = 1.0;
+    let sumValues = 0.0;
+    let sumWeights = 0.0;
+    for (let i = 0; i < ITER; i++) {
+        let p = [Math.sin(iter), Math.cos(iter)];
+        let res = getwave(position, p, frequency, time * timeMultiplier + wavePhaseShift);
+
+        position[0] += p[0] * res[1] * weight * 0.38;
+        position[1] += p[1] * res[1] * weight * 0.38;
+
+        sumValues += res[0] * weight;
+        sumWeights += weight;
+
+        weight = weight * 0.8;
+        frequency *= 1.18;
+        timeMultiplier *= 1.07;
+        iter += 1232.399963;
+    }
+    return sumValues / sumWeights;
+}
+
 // Load shader files
 // If the page is opened via file://, fetch will fail in most browsers.
 if (location.protocol === 'file:') {
@@ -395,10 +470,14 @@ Promise.all([
     function animate() {
         const time = (Date.now() - startTime) * 0.001;
         const shipSpeed = uniforms.boatRotationSpeed / 10.0 || 0.5;
-        const shipRadius = 10.0;
+        const shipRadius = 6.0;
         const shipX = Math.cos(time * shipSpeed) * shipRadius;
         const shipZ = Math.sin(time * shipSpeed) * shipRadius;
         const shipRot = time * shipSpeed;
+        const wavesdfH = getWavesHeight([shipX, shipZ], time, uniforms.normIter);
+        const watersdfY = wavesdfH * uniforms.waterDepth - uniforms.waterDepth;
+        const invView = mat4Inverse(boatView);
+        const invProj = mat4Inverse(boatProj);
         camera.eye[1] = uniforms.camHeight;
         boatView = mat4LookAt(camera.eye, camera.center, camera.up);
 
@@ -415,20 +494,20 @@ Promise.all([
             gl.uniform1i(boat_uTexture, 0);
 
             // boat model distance from center to bottom
-            const yOffset = 3.7021000385284424;
-            const scale = 1.0 / 100.0;
-            let shipModelRot = shipRot - Math.PI/2;
-            const shipModelX = Math.cos(shipModelRot) * shipRadius;
-            const shipModelZ = Math.sin(shipModelRot) * shipRadius;
+            const scale = 1.5 / 100.0;
+            const shipModelX = Math.cos(time * shipSpeed - Math.PI/2) * shipRadius;
+            const shipModelZ = Math.sin(time * shipSpeed - Math.PI/2) * shipRadius;
+            const waveH = getWavesHeight([shipModelX, shipModelZ], time, uniforms.normIter);
+            const waterY = waveH * uniforms.waterDepth - uniforms.waterDepth;
             // world translation model
             const worldTranslate = new Float32Array([
                 scale,0,0,0,
                 0,scale,0,0,
                 0,0,scale,0,
-                -shipModelX, -4, shipModelZ, 1
+                shipModelX, waterY, shipModelZ, 1
             ]);
             // ship rotate
-            shipModelRot = shipModelRot - Math.PI/2;
+            const shipModelRot = -(time * shipSpeed + Math.PI);
             const rot = new Float32Array([
                 Math.cos(shipModelRot), 0.0, -Math.sin(shipModelRot),0,
                 0.0, 1.0, 0.0, 0,
@@ -437,6 +516,7 @@ Promise.all([
             ]);
 
             boatModel = mat4Multiply(rot, worldTranslate);
+            // boatModel = worldTranslate;
 
             gl.uniformMatrix4fv(boat_uModel, false, boatModel);
             gl.uniformMatrix4fv(boat_uView,  false, boatView);
@@ -454,6 +534,8 @@ Promise.all([
         gl.depthMask(false);
         gl.useProgram(program); // SDF shader
 
+        gl.uniformMatrix4fv(gl.getUniformLocation(program, "uInvView"), false, invView);
+        gl.uniformMatrix4fv(gl.getUniformLocation(program, "uInvProj"), false, invProj);
         gl.uniform3f(gl.getUniformLocation(program, "camPos"),camera.eye[0], camera.eye[1], camera.eye[2]);
         gl.uniform3f(gl.getUniformLocation(program, "camTarget"),camera.center[0], camera.center[1], camera.center[2]);
         gl.uniform2f(gl.getUniformLocation(program, 'iResolution'), canvas.width, canvas.height);
@@ -468,7 +550,7 @@ Promise.all([
 
 
         // Calculate ship position moving in circle
-        gl.uniform3f(gl.getUniformLocation(program, 'shipPos'), shipX, -0.5, shipZ);
+        gl.uniform3f(gl.getUniformLocation(program, 'shipPos'), shipX, watersdfY, shipZ);
         gl.uniform1f(gl.getUniformLocation(program, 'shipRadius'), 2.0);
         gl.uniform1f(gl.getUniformLocation(program, 'shipRotation'), shipRot);
 
