@@ -471,6 +471,10 @@ Promise.all([
     let lastMouseX = 0, lastMouseY = 0;
     let isMouseDown = false;
 
+    // keyboard (WASD) movement state
+    const moveKeys = { w: false, a: false, s: false, d: false };
+    const moveSpeed = 3.5; // units per second
+
     // camera orientation in spherical coords (radians)
     // yaw: rotation around Y axis (left/right), pitch: up/down
     let yaw = 0.0;
@@ -553,11 +557,60 @@ Promise.all([
     let pauseStart = 0; // timestamp when pause began (ms)
     let timeAtPause = 0.0; // frozen time in seconds used while paused
     const pauseOverlay = document.getElementById('pauseOverlay');
+    // last frame timestamp used to compute smooth camera movement (ms)
+    let lastFrameTimeMs = Date.now();
+
+    function applyMovement(dt) {
+        // dt in seconds
+        if (!moveKeys.w && !moveKeys.a && !moveKeys.s && !moveKeys.d) return false;
+
+        // forward is camera center - eye, flattened on Y
+        const fx = camera.center[0] - camera.eye[0];
+        const fz = camera.center[2] - camera.eye[2];
+        let forwardLen = Math.hypot(fx, fz) || 1.0;
+        const forwardX = fx / forwardLen;
+        const forwardZ = fz / forwardLen;
+
+        // right vector in XZ plane
+        const rightX = forwardZ;
+        const rightZ = -forwardX;
+
+        let moveX = 0, moveZ = 0;
+        if (moveKeys.w) { moveX += forwardX; moveZ += forwardZ; }
+        if (moveKeys.s) { moveX -= forwardX; moveZ -= forwardZ; }
+        if (moveKeys.a) { moveX += rightX; moveZ += rightZ; }
+        if (moveKeys.d) { moveX -= rightX; moveZ -= rightZ; }
+
+        // normalize (so diagonal isn't faster)
+        const ml = Math.hypot(moveX, moveZ) || 0.0;
+        if (ml > 0) {
+            moveX = (moveX / ml) * moveSpeed * dt;
+            moveZ = (moveZ / ml) * moveSpeed * dt;
+
+            camera.eye[0] += moveX; camera.eye[2] += moveZ;
+            camera.center[0] += moveX; camera.center[2] += moveZ;
+            return true;
+        }
+        return false;
+    }
+
     function animate() {
         // If paused, use the frozen time captured when pause occurred so
         // the world (ships, waves, etc.) stay still. When not paused compute
         // the normal elapsed time while accounting for any paused duration.
+        const nowMs = Date.now();
+        // compute dt for movement using wall-clock time (independent of simulation 'time')
+        let dt = (nowMs - lastFrameTimeMs) * 0.001;
+        // clamp to avoid huge jumps after long pauses
+        if (dt > 0.2) dt = 0.2;
+        lastFrameTimeMs = nowMs;
+
         const time = isPaused ? timeAtPause : (Date.now() - startTime - pausedDuration) * 0.001;
+
+        // if we applied movement and are paused we want to render a single frame
+        // reflecting the camera update; if animate is called while paused dt will be
+        // used as a small movement step (see key handlers below).
+        const moved = applyMovement(isPaused ? 1/60 : dt);
         const shipSpeed = uniforms.boatRotationSpeed / 10.0 || 0.5;
         const shipRadius = 6.0;
         const shipX = Math.cos(time * shipSpeed) * shipRadius;
@@ -661,14 +714,35 @@ Promise.all([
     // start the main loop
     animate();
 
-    // Spacebar toggles pause/resume. Don't toggle while typing / interacting with inputs.
+    // Spacebar toggles pause/resume and WASD movement handling.
+    // Don't toggle while typing / interacting with inputs.
+    let pausedMoveInterval = null;
     window.addEventListener('keydown', (e) => {
         // only toggle on Space (code) and avoid toggling while user is interacting with input elements
+        // handle WASD keys first
+        const isTyping = (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable));
+        if (!isTyping) {
+            if (e.code === 'KeyW' || e.key === 'w' || e.key === 'W') { moveKeys.w = true; e.preventDefault(); }
+            if (e.code === 'KeyA' || e.key === 'a' || e.key === 'A') { moveKeys.a = true; e.preventDefault(); }
+            if (e.code === 'KeyS' || e.key === 's' || e.key === 'S') { moveKeys.s = true; e.preventDefault(); }
+            if (e.code === 'KeyD' || e.key === 'd' || e.key === 'D') { moveKeys.d = true; e.preventDefault(); }
+
+            // if paused and user started moving keys, render repeatedly while keys are held
+            if (isPaused && (moveKeys.w || moveKeys.a || moveKeys.s || moveKeys.d) && pausedMoveInterval == null) {
+                pausedMoveInterval = setInterval(() => {
+                    // apply small step and render
+                    applyMovement(1/60);
+                    animate();
+                }, 1000/60);
+            }
+        }
+
         if (e.code === 'Space') {
             const ae = document.activeElement;
             const activeTag = ae ? ae.tagName : '';
-            const isTyping = (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || (ae && ae.isContentEditable));
-            if (isTyping) return; // ignore when focused on form inputs
+            // we already handled input typing above - protect space too
+            const typingHere = (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || (ae && ae.isContentEditable));
+            if (typingHere) return; // ignore when focused on form inputs
 
             e.preventDefault();
             if (!isPaused) {
@@ -689,8 +763,26 @@ Promise.all([
                 // sync last mouse references so there is no sudden jump when resuming
                 lastMouseX = mouseX;
                 lastMouseY = mouseY;
+                // clear paused movement interval if any (the main loop will handle movement)
+                if (pausedMoveInterval) { clearInterval(pausedMoveInterval); pausedMoveInterval = null; }
+                // reset frame timer to avoid a big dt on resume
+                lastFrameTimeMs = Date.now();
                 requestAnimationFrame(animate);
             }
+        }
+    });
+
+    // Keyup to end WASD movement
+    window.addEventListener('keyup', (e) => {
+        if (e.code === 'KeyW' || e.key === 'w' || e.key === 'W') moveKeys.w = false;
+        if (e.code === 'KeyA' || e.key === 'a' || e.key === 'A') moveKeys.a = false;
+        if (e.code === 'KeyS' || e.key === 's' || e.key === 'S') moveKeys.s = false;
+        if (e.code === 'KeyD' || e.key === 'd' || e.key === 'D') moveKeys.d = false;
+
+        // If no movement keys are down and we were doing paused movement, stop interval.
+        if (pausedMoveInterval && !(moveKeys.w || moveKeys.a || moveKeys.s || moveKeys.d)) {
+            clearInterval(pausedMoveInterval);
+            pausedMoveInterval = null;
         }
     });
 }).catch(err => {
