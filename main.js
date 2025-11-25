@@ -490,6 +490,7 @@ Promise.all([
 
     // Start dragging only when the right mouse button (button === 2) is pressed.
     window.addEventListener('mousedown', (e) => {
+        // allow starting drag even when paused so the user can change view
         if (e.button === 2) {
             isMouseDown = true;
             lastMouseX = e.clientX;
@@ -509,6 +510,8 @@ Promise.all([
     window.addEventListener('mousemove', e => {
         mouseX = e.clientX;
         mouseY = e.clientY;
+
+        // update camera orientation while dragging even when paused
 
         if (isMouseDown) {
             const dx = e.clientX - lastMouseX;
@@ -534,12 +537,27 @@ Promise.all([
             camera.center[0] = camera.eye[0] + fx;
             camera.center[1] = camera.eye[1] + fy;
             camera.center[2] = camera.eye[2] + fz;
+            // If we're paused the animation loop isn't running — render a single
+            // frame so the change is visible immediately (the time remains frozen)
+            if (isPaused) {
+                // draw one frame using the current frozen time
+                animate();
+            }
         }
     });
 
-    const startTime = Date.now();
+    // animation timing / pause handling
+    let startTime = Date.now();
+    let pausedDuration = 0; // accumulated time while paused (ms)
+    let isPaused = false;
+    let pauseStart = 0; // timestamp when pause began (ms)
+    let timeAtPause = 0.0; // frozen time in seconds used while paused
+    const pauseOverlay = document.getElementById('pauseOverlay');
     function animate() {
-        const time = (Date.now() - startTime) * 0.001;
+        // If paused, use the frozen time captured when pause occurred so
+        // the world (ships, waves, etc.) stay still. When not paused compute
+        // the normal elapsed time while accounting for any paused duration.
+        const time = isPaused ? timeAtPause : (Date.now() - startTime - pausedDuration) * 0.001;
         const shipSpeed = uniforms.boatRotationSpeed / 10.0 || 0.5;
         const shipRadius = 6.0;
         const shipX = Math.cos(time * shipSpeed) * shipRadius;
@@ -633,10 +651,48 @@ Promise.all([
         gl.bindVertexArray(null);
         gl.depthMask(true);
 
-        requestAnimationFrame(animate);
+        // Continue animating only if not paused. When paused we intentionally stop
+        // scheduling further frames so the scene remains frozen.
+        if (!isPaused) {
+            requestAnimationFrame(animate);
+        }
     }
 
+    // start the main loop
     animate();
+
+    // Spacebar toggles pause/resume. Don't toggle while typing / interacting with inputs.
+    window.addEventListener('keydown', (e) => {
+        // only toggle on Space (code) and avoid toggling while user is interacting with input elements
+        if (e.code === 'Space') {
+            const ae = document.activeElement;
+            const activeTag = ae ? ae.tagName : '';
+            const isTyping = (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || (ae && ae.isContentEditable));
+            if (isTyping) return; // ignore when focused on form inputs
+
+            e.preventDefault();
+            if (!isPaused) {
+                // pause: record when it started, and capture current frozen time
+                isPaused = true;
+                pauseStart = Date.now();
+                // timeAtPause is measured in seconds and used while paused
+                timeAtPause = (pauseStart - startTime - pausedDuration) * 0.001;
+                // keep isMouseDown state so dragging remains possible while paused
+                if (pauseOverlay) pauseOverlay.hidden = false;
+            } else {
+                // resume
+                isPaused = false;
+                pausedDuration += (Date.now() - pauseStart);
+                pauseStart = 0;
+                if (pauseOverlay) pauseOverlay.hidden = true;
+                // restart the animation loop
+                // sync last mouse references so there is no sudden jump when resuming
+                lastMouseX = mouseX;
+                lastMouseY = mouseY;
+                requestAnimationFrame(animate);
+            }
+        }
+    });
 }).catch(err => {
     console.error('Failed to load shaders or models:', err);
     // Add an extra hint for the common file:// case
