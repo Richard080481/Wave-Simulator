@@ -125,8 +125,6 @@ vec3 boatNormal(vec3 p) {
     return normalize(vec3(sdfSpeedBoat(p + vec3(e, 0, 0)).x - sdfSpeedBoat(p - vec3(e, 0, 0)).x, sdfSpeedBoat(p + vec3(0, e, 0)).x - sdfSpeedBoat(p - vec3(0, e, 0)).x, sdfSpeedBoat(p + vec3(0, 0, e)).x - sdfSpeedBoat(p - vec3(0, 0, e)).x));
 }
 
-//simple noise functions
-
 // Simple 2D noise (Perlin-like)
 float noise(vec2 p)
 {
@@ -214,41 +212,58 @@ vec3 generateStars(vec3 rayDir)
 {
     if(rayDir.y < 0.02) return vec3(0.0);
 
-    // Convert ray to 2D sky coordinates
+    // 2D sky coordinates
     vec2 skyCoord = vec2(
         atan(rayDir.z, rayDir.x) * 2.0,
         asin(clamp(rayDir.y, -1.0, 1.0)) * 2.0
     );
 
-    // Create grid
+    // Grid
     vec2 gridCoord = skyCoord * 50.0;
     vec2 gridId = floor(gridCoord);
-    vec2 gridUv = fract(gridCoord);  // Position within cell [0, 1]
+    vec2 gridUv = fract(gridCoord);
 
-    // Random value for this grid cell
-    float random = hash(gridId);
-    // Map STAR_DENSITY (0.0– ~0.1) → probability of a star per cell
-    float density = clamp(STAR_DENSITY, 0.0, 0.2);   // safety clamp
+    // User density -> per-cell probability
+    float density = clamp(STAR_DENSITY, 0.0, 0.2); // ~0.03 ≈ 3%
 
-    if(random > 1.0 - density)
-    {
-        // Star position within the cell (also random)
-        vec2 starPos = vec2(
-            hash(gridId + vec2(1.0, 0.0)),
-            hash(gridId + vec2(0.0, 1.0))
-        );
+    // Per-cell local second to avoid global sync
+    float phaseJitter = hash(gridId + vec2(37.2, 91.7));   // [0,1)
+    float localTime   = iTime + phaseJitter;               // shift seconds per cell
+    float secNow      = floor(localTime);
+    float secPrev     = secNow - 1.0;
+    float f           = fract(localTime);                  // 0→1 within this local second
 
-        // Distance from current position to star center
-        float dist = length(gridUv - starPos);
+    //Random on/off each second
+    float rndNow  = hash(gridId + vec2(secNow,  secNow * 0.618));
+    float rndPrev = hash(gridId + vec2(secPrev, secPrev * 0.618));
 
-        // Create small point star
-        float star = smoothstep(0.08, 0.0, dist);  // Sharp falloff
+    float onNow  = step(1.0 - density, rndNow);            // 1 -> star present this second
+    float onPrev = step(1.0 - density, rndPrev);           // 1 -> star present last second
 
-        return vec3(star);
-    }
+    // Smooth crossfade between last/this second
+    float on = mix(onPrev, onNow, f);
 
-    return vec3(0.0);
+    if(on <= 0.0) return vec3(0.0);
+
+    // Star shape (slightly larger so blink is visible)
+    vec2  starPos = vec2(
+        hash(gridId + vec2(1.0, 0.0)),
+        hash(gridId + vec2(0.0, 1.0))
+    );
+    float dist  = length(gridUv - starPos);
+    float star  = smoothstep(0.10, 0.0, dist);
+
+    // tiny size breathing within the second
+    float sizePulse = 0.004 * sin(6.2831853 * f);
+    star = smoothstep(0.10 + sizePulse, 0.0, dist);
+
+    // Subtle color jitter per star
+    float tint = hash(gridId + vec2(19.0, 23.0));
+    vec3 starTint = mix(vec3(0.95, 0.95, 1.00), vec3(1.00, 0.95, 0.90), tint);
+
+    return starTint * star;
 }
+
 
 // Calculates wave value and its derivative,
 // for the wave direction, position in space, wave frequency and time
