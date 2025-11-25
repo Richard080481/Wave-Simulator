@@ -84,6 +84,41 @@ if (resSlider) {
     resLabel.textContent = Math.round(resolutionScale * 100) + '%';
 }
 
+// Close/open controls buttons
+const controlsEl = document.getElementById('controls');
+const controlsCloseBtn = document.getElementById('controlsClose');
+const controlsOpenBtn = document.getElementById('controlsOpen');
+
+// Initialize reopen (gear) button visibility to match the current panel state.
+if (controlsEl && controlsOpenBtn) {
+    // If the controls panel is currently not closed, hide the reopen button.
+    controlsOpenBtn.hidden = !controlsEl.classList.contains('closed');
+}
+if (controlsCloseBtn && controlsEl && controlsOpenBtn) {
+    controlsCloseBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        controlsEl.classList.add('closed');
+        // show open button
+        controlsOpenBtn.hidden = false;
+        controlsOpenBtn.setAttribute('aria-expanded', 'false');
+    });
+
+    controlsOpenBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        controlsEl.classList.remove('closed');
+        controlsOpenBtn.hidden = true;
+        controlsOpenBtn.setAttribute('aria-expanded', 'true');
+    });
+
+    // allow Escape to close the controls if focused anywhere
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !controlsEl.classList.contains('closed')) {
+            controlsEl.classList.add('closed');
+            controlsOpenBtn.hidden = false;
+        }
+    });
+}
+
 function compileShader(type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);

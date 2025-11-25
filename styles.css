@@ -19,6 +19,7 @@ canvas {
     color: #fff;
     font-size: 14px;
     backdrop-filter: blur(5px);
+    transition: opacity 180ms ease, transform 180ms ease;
 }
 .control-group {
     margin: 12px 0;
@@ -49,4 +50,58 @@ small {
     color: #aaa;
     margin-top: 15px;
     font-size: 12px;
+}
+
+/* close button inside the controls */
+.controls-close, #controls .controls-close {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #fff;
+    font-size: 18px;
+    line-height: 28px;
+    text-align: center;
+    cursor: pointer;
+}
+.controls-close:hover {
+    background: rgba(255,255,255,0.12);
+}
+
+/* small reopen button that appears when the controls are closed */
+.controls-open, #controlsOpen {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    z-index: 40;
+}
+.controls-open:hover {
+    background: rgba(0,0,0,0.85);
+}
+
+/* closed state for the controls - visually hide while keeping a smooth transition */
+#controls.closed {
+    opacity: 0;
+    transform: translateX(-8px) scale(0.98);
+    pointer-events: none;
+}
+
+/* hide the small gear button while the controls panel is shown */
+#controls:not(.closed) + #controlsOpen {
+    display: none !important;
 }

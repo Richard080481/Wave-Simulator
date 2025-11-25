@@ -9,6 +9,7 @@
 <body>
     <canvas id="canvas"></canvas>
     <div id="controls">
+        <button id="controlsClose" class="controls-close" aria-label="Close settings">×</button>
         <h3>Wave Simulator</h3>
         <div class="control-group">
             <label>Water Depth:</label>
@@ -55,6 +56,9 @@
 
         <small>💡 Right-click and drag mouse to look around</small>
     </div>
+
+    <!-- small button that appears after the controls are closed so user can re-open them -->
+    <button id="controlsOpen" class="controls-open" aria-label="Open settings" hidden>⚙️</button>
 
     <script src="main.js"></script>
 </body>
