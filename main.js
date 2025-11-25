@@ -254,7 +254,7 @@ function parseOBJ(text) {
 
         if (parts[0] === 'v') {
             positions.push(parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3]));
-        } 
+        }
         else if (parts[0] === 'vt') {
             uvs.push(parseFloat(parts[1]), 1.0 - parseFloat(parts[2]));
         }
@@ -439,17 +439,36 @@ Promise.all([
     boatProj = mat4Perspective(Math.PI/4, canvas.width/canvas.height, 0.1, 500.0);
     boatModel = mat4Identity();
 
-    let mouseX = 0, mouseY = 0;
+    // mouse state
+    let mouseX = 0, mouseY = 0;       // last moved mouse, used for shader iMouse
     let lastMouseX = 0, lastMouseY = 0;
     let isMouseDown = false;
+
+    // camera orientation in spherical coords (radians)
+    // yaw: rotation around Y axis (left/right), pitch: up/down
+    let yaw = 0.0;
+    let pitch = 0.0;
+    const lookSensitivity = 0.003; // adjust to taste
+
+    // initialize yaw/pitch from camera eye->center vector (safe default)
+    (function initYawPitch() {
+        const fx = camera.center[0] - camera.eye[0];
+        const fy = camera.center[1] - camera.eye[1];
+        const fz = camera.center[2] - camera.eye[2];
+        const r = Math.hypot(fx, fy, fz) || 1.0;
+        const nx = fx / r, ny = fy / r, nz = fz / r;
+        yaw = Math.atan2(nx, nz);
+        pitch = Math.asin(Math.max(-1, Math.min(1, ny)));
+    })();
 
     // Start dragging only when the right mouse button (button === 2) is pressed.
     window.addEventListener('mousedown', (e) => {
         if (e.button === 2) {
             isMouseDown = true;
-            // Use the actual mouse position as the starting reference
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
+            // prevent the browser from doing other things
+            e.preventDefault();
         }
     });
 
@@ -458,11 +477,36 @@ Promise.all([
         isMouseDown = false;
     });
 
-    // On mouse move, update mouseX/mouseY only while dragging (right button held)
+    // On mouse move, update camera yaw/pitch while right button is held and also
+    // update mouseX/mouseY which is passed through to the shader (iMouse)
     window.addEventListener('mousemove', e => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+
         if (isMouseDown) {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
+            const dx = e.clientX - lastMouseX;
+            const dy = e.clientY - lastMouseY;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+
+            // update yaw/pitch using mouse movement
+            yaw -= dx * lookSensitivity;
+            pitch -= dy * lookSensitivity;
+
+            // clamp pitch to avoid flipping (slightly less than +/- 90 degrees)
+            const maxPitch = Math.PI / 2 - 0.01;
+            if (pitch > maxPitch) pitch = maxPitch;
+            if (pitch < -maxPitch) pitch = -maxPitch;
+
+            // compute new forward vector from spherical coords
+            const fx = Math.sin(yaw) * Math.cos(pitch);
+            const fy = Math.sin(pitch);
+            const fz = Math.cos(yaw) * Math.cos(pitch);
+
+            // camera center is eye + forward
+            camera.center[0] = camera.eye[0] + fx;
+            camera.center[1] = camera.eye[1] + fy;
+            camera.center[2] = camera.eye[2] + fz;
         }
     });
 
