@@ -52,7 +52,6 @@ small {
     font-size: 12px;
 }
 
-/* close button inside the controls */
 .controls-close, #controls .controls-close {
     position: absolute;
     right: 8px;
@@ -72,7 +71,6 @@ small {
     background: rgba(255,255,255,0.12);
 }
 
-/* small reopen button that appears when the controls are closed */
 .controls-open, #controlsOpen {
     position: absolute;
     top: 20px;
@@ -94,19 +92,16 @@ small {
     background: rgba(0,0,0,0.85);
 }
 
-/* closed state for the controls - visually hide while keeping a smooth transition */
 #controls.closed {
     opacity: 0;
     transform: translateX(-8px) scale(0.98);
     pointer-events: none;
 }
 
-/* hide the small gear button while the controls panel is shown */
 #controls:not(.closed) + #controlsOpen {
     display: none !important;
 }
 
-/* pause overlay */
 .pause-overlay, #pauseOverlay {
     position: absolute;
     left: 50%;

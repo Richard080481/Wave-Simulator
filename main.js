@@ -107,22 +107,18 @@ if (controlsCloseBtn && controlsEl && controlsOpenBtn) {
         controlsOpenBtn.setAttribute('aria-expanded', 'true');
     });
 
-    // allow Escape to close the controls if focused anywhere
+    // Allow Escape to close the controls if focused anywhere
     window.addEventListener('keydown', (e) => {
         // Prevent browser tab/window shortcuts (Ctrl/Cmd+W) from closing the page
-        // when the user is holding movement keys. This tries to stop the browser
-        // default and keeps the key event for the app. NOTE: some browsers may
-        // still ignore preventDefault for system-critical shortcuts — this is
-        // the most compatible attempt (Firefox/Chrome usually allow this).
+        // and treat the key as forward movement inside the app when appropriate.
+        const ae = document.activeElement;
+        const isTypingNow = (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable));
         if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyW' || e.key === 'w' || e.key === 'W')) {
-            // prevent close-tab (Ctrl/Cmd+W)
+            // Block default close-tab behavior in the browser.
             e.preventDefault();
             e.stopPropagation();
-            // allow the app to treat it as a normal 'W' press for forward movement
-            if (!(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable))) {
-                moveKeys.w = true;
-            }
-            return; // handled
+            if (!isTypingNow) moveKeys.w = true;
+            return;
         }
         if (e.key === 'Escape' && !controlsEl.classList.contains('closed')) {
             controlsEl.classList.add('closed');
@@ -344,7 +340,7 @@ function loadTexture(url) {
     return tex;
 }
 
-// caculate SDF wave height
+// Calculate SDF wave height
 // single wave
 function getwave(position, direction, frequency, timeshift) {
     let x = (direction[0]*position[0] + direction[1]*position[1]) * frequency + timeshift;

@@ -32,7 +32,7 @@ struct BoatHit {
     float t;         // Distance along ray
 };
 
-// Caculate depth
+// Calculate depth
 float getDepth( vec3 worldPos )
 {
     vec4 clip = uProj * uView * vec4(worldPos, 1.0);
