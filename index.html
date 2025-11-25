@@ -43,8 +43,6 @@
             <input type="range" id="resolutionScale" min="0.25" max="1.0" step="0.05" value="1.0">
             <span class="value" id="resolutionVal">100%</span>
         </div>
-
-        <small>💡 Right-click and drag mouse to look around</small>
     </div>
 
     <!-- small button that appears after the controls are closed so user can re-open them -->
@@ -52,6 +50,14 @@
 
     <!-- Paused overlay indicator -->
     <div id="pauseOverlay" class="pause-overlay" hidden>PAUSED — press P to resume</div>
+
+    <!-- HUD / Controls hint -->
+    <div id="hudLegend" class="hud-legend" aria-hidden="false">
+        <div class="hud-row"><strong>W/A/S/D</strong> — move</div>
+        <div class="hud-row"><strong>Space</strong> — up, <strong>Ctrl</strong> — down</div>
+        <div class="hud-row"><strong>P</strong> — pause / resume</div>
+        <div class="hud-row"><strong>Right-click + drag</strong> — look around</div>
+    </div>
 
     <script src="main.js"></script>
 </body>
