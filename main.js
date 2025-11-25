@@ -44,14 +44,6 @@ document.getElementById('camHeight').addEventListener('input', e => {
     uniforms.camHeight = parseFloat(e.target.value);
     document.getElementById('heightVal').textContent = uniforms.camHeight.toFixed(1);
 });
-document.getElementById('rayIter').addEventListener('input', e => {
-    uniforms.rayIter = parseInt(e.target.value);
-    document.getElementById('rayVal').textContent = uniforms.rayIter;
-});
-document.getElementById('normIter').addEventListener('input', e => {
-    uniforms.normIter = parseInt(e.target.value);
-    document.getElementById('normVal').textContent = uniforms.normIter;
-});
 document.getElementById('sunRotationSpeed').addEventListener('input', e => {
     uniforms.sunRotationSpeed = parseFloat(e.target.value);
     document.getElementById('sunSpeedVal').textContent = uniforms.sunRotationSpeed.toFixed(1);
