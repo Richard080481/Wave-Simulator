@@ -41,8 +41,13 @@ document.getElementById('waterDepth').addEventListener('input', e => {
     document.getElementById('depthVal').textContent = uniforms.waterDepth.toFixed(1);
 });
 document.getElementById('camHeight').addEventListener('input', e => {
+    // move camera eye Y to the slider value and keep center's relative offset
+    const oldEyeY = camera.eye[1];
     uniforms.camHeight = parseFloat(e.target.value);
     document.getElementById('heightVal').textContent = uniforms.camHeight.toFixed(1);
+    const delta = uniforms.camHeight - oldEyeY;
+    camera.eye[1] = uniforms.camHeight;
+    camera.center[1] += delta;
 });
 document.getElementById('sunRotationSpeed').addEventListener('input', e => {
     uniforms.sunRotationSpeed = parseFloat(e.target.value);
@@ -104,6 +109,21 @@ if (controlsCloseBtn && controlsEl && controlsOpenBtn) {
 
     // allow Escape to close the controls if focused anywhere
     window.addEventListener('keydown', (e) => {
+        // Prevent browser tab/window shortcuts (Ctrl/Cmd+W) from closing the page
+        // when the user is holding movement keys. This tries to stop the browser
+        // default and keeps the key event for the app. NOTE: some browsers may
+        // still ignore preventDefault for system-critical shortcuts — this is
+        // the most compatible attempt (Firefox/Chrome usually allow this).
+        if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyW' || e.key === 'w' || e.key === 'W')) {
+            // prevent close-tab (Ctrl/Cmd+W)
+            e.preventDefault();
+            e.stopPropagation();
+            // allow the app to treat it as a normal 'W' press for forward movement
+            if (!(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable))) {
+                moveKeys.w = true;
+            }
+            return; // handled
+        }
         if (e.key === 'Escape' && !controlsEl.classList.contains('closed')) {
             controlsEl.classList.add('closed');
             controlsOpenBtn.hidden = false;
@@ -473,7 +493,9 @@ Promise.all([
 
     // keyboard (WASD) movement state
     const moveKeys = { w: false, a: false, s: false, d: false };
-    const moveSpeed = 3.5; // units per second
+    const moveSpeed = 3.5; // horizontal units per second
+    const verticalSpeed = 2.25; // vertical units per second (Space / Ctrl)
+    let moveUp = false, moveDown = false;
 
     // camera orientation in spherical coords (radians)
     // yaw: rotation around Y axis (left/right), pitch: up/down
@@ -562,7 +584,7 @@ Promise.all([
 
     function applyMovement(dt) {
         // dt in seconds
-        if (!moveKeys.w && !moveKeys.a && !moveKeys.s && !moveKeys.d) return false;
+        if (!moveKeys.w && !moveKeys.a && !moveKeys.s && !moveKeys.d && !moveUp && !moveDown) return false;
 
         // forward is camera center - eye, flattened on Y
         const fx = camera.center[0] - camera.eye[0];
@@ -583,15 +605,25 @@ Promise.all([
 
         // normalize (so diagonal isn't faster)
         const ml = Math.hypot(moveX, moveZ) || 0.0;
+        let moved = false;
         if (ml > 0) {
             moveX = (moveX / ml) * moveSpeed * dt;
             moveZ = (moveZ / ml) * moveSpeed * dt;
 
             camera.eye[0] += moveX; camera.eye[2] += moveZ;
             camera.center[0] += moveX; camera.center[2] += moveZ;
-            return true;
+            moved = true;
         }
-        return false;
+        // vertical movement (Space = up, Ctrl = down)
+        let dy = 0;
+        if (moveUp) dy += verticalSpeed * dt;
+        if (moveDown) dy -= verticalSpeed * dt;
+        if (dy !== 0) {
+            camera.eye[1] += dy;
+            camera.center[1] += dy;
+            moved = true;
+        }
+        return moved;
     }
 
     function animate() {
@@ -620,7 +652,8 @@ Promise.all([
         const watersdfY = wavesdfH * uniforms.waterDepth - uniforms.waterDepth;
         const invView = mat4Inverse(boatView);
         const invProj = mat4Inverse(boatProj);
-        camera.eye[1] = uniforms.camHeight;
+        // camera.eye[1] is controlled by the camHeight slider initially and by keyboard
+        // vertical movement (Space / Ctrl). Do not override it here.
         boatView = mat4LookAt(camera.eye, camera.center, camera.up);
 
         gl.viewport(0, 0, canvas.width, canvas.height);
@@ -726,9 +759,12 @@ Promise.all([
             if (e.code === 'KeyA' || e.key === 'a' || e.key === 'A') { moveKeys.a = true; e.preventDefault(); }
             if (e.code === 'KeyS' || e.key === 's' || e.key === 'S') { moveKeys.s = true; e.preventDefault(); }
             if (e.code === 'KeyD' || e.key === 'd' || e.key === 'D') { moveKeys.d = true; e.preventDefault(); }
+            // vertical movement keys
+            if (e.code === 'Space' || e.key === ' ') { moveUp = true; e.preventDefault(); }
+            if (e.code === 'ControlLeft' || e.code === 'ControlRight' || e.key === 'Control') { moveDown = true; e.preventDefault(); }
 
             // if paused and user started moving keys, render repeatedly while keys are held
-            if (isPaused && (moveKeys.w || moveKeys.a || moveKeys.s || moveKeys.d) && pausedMoveInterval == null) {
+            if (isPaused && (moveKeys.w || moveKeys.a || moveKeys.s || moveKeys.d || moveUp || moveDown) && pausedMoveInterval == null) {
                 pausedMoveInterval = setInterval(() => {
                     // apply small step and render
                     applyMovement(1/60);
@@ -737,7 +773,7 @@ Promise.all([
             }
         }
 
-        if (e.code === 'Space') {
+        if (e.code === 'KeyP') {
             const ae = document.activeElement;
             const activeTag = ae ? ae.tagName : '';
             // we already handled input typing above - protect space too
@@ -778,9 +814,11 @@ Promise.all([
         if (e.code === 'KeyA' || e.key === 'a' || e.key === 'A') moveKeys.a = false;
         if (e.code === 'KeyS' || e.key === 's' || e.key === 'S') moveKeys.s = false;
         if (e.code === 'KeyD' || e.key === 'd' || e.key === 'D') moveKeys.d = false;
+        if (e.code === 'Space' || e.key === ' ') moveUp = false;
+        if (e.code === 'ControlLeft' || e.code === 'ControlRight' || e.key === 'Control') moveDown = false;
 
         // If no movement keys are down and we were doing paused movement, stop interval.
-        if (pausedMoveInterval && !(moveKeys.w || moveKeys.a || moveKeys.s || moveKeys.d)) {
+        if (pausedMoveInterval && !(moveKeys.w || moveKeys.a || moveKeys.s || moveKeys.d || moveUp || moveDown)) {
             clearInterval(pausedMoveInterval);
             pausedMoveInterval = null;
         }
