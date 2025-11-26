@@ -702,13 +702,13 @@ Promise.all([
             const rightH = getWavesHeight([shipModelX + Math.sin(shipModelRot)*delta,shipModelZ - Math.cos(shipModelRot)*delta], time, uniforms.normIter);
             const pitchForce = (frontH - backH) * pitchStiffness;;
             const rollForce  = (leftH - rightH) * rollStiffness;
-            const dt = 0.16;
+            const boat_dt = 0.16;
             const pitchRestoring = 2.5;
             const rollRestoring  = 2.5;
-            pitchVelocity += (pitchForce - pitchAngle * pitchRestoring - pitchVelocity * pitchDamping) * dt;
-            rollVelocity  += (rollForce  - rollAngle  * rollRestoring  - rollVelocity  * rollDamping)  * dt;
-            pitchAngle += pitchVelocity * dt;
-            rollAngle  += rollVelocity  * dt;
+            pitchVelocity += (pitchForce - pitchAngle * pitchRestoring - pitchVelocity * pitchDamping) * boat_dt;
+            rollVelocity  += (rollForce  - rollAngle  * rollRestoring  - rollVelocity  * rollDamping)  * boat_dt;
+            pitchAngle += pitchVelocity * boat_dt;
+            rollAngle  += rollVelocity  * boat_dt;
             const pitch = pitchAngle;
             const roll  = rollAngle;
             const rot = new Float32Array([
@@ -772,13 +772,13 @@ Promise.all([
         const rightH = getWavesHeight([shipX + Math.sin(shipRot)*delta,shipZ - Math.cos(shipRot)*delta], time, uniforms.normIter);
         const pitchForce = (frontH - backH) * pitchStiffness;;
         const rollForce  = (leftH - rightH) * rollStiffness;
-        const dt = 0.16;
+        const boat_dt = 0.16;
         const pitchRestoring = 2.5;
         const rollRestoring  = 2.5;
-        pitchVelocity += (pitchForce - pitchAngle * pitchRestoring - pitchVelocity * pitchDamping) * dt;
-        rollVelocity  += (rollForce  - rollAngle  * rollRestoring  - rollVelocity  * rollDamping)  * dt;
-        pitchAngle += pitchVelocity * dt;
-        rollAngle  += rollVelocity  * dt;
+        pitchVelocity += (pitchForce - pitchAngle * pitchRestoring - pitchVelocity * pitchDamping) * boat_dt;
+        rollVelocity  += (rollForce  - rollAngle  * rollRestoring  - rollVelocity  * rollDamping)  * boat_dt;
+        pitchAngle += pitchVelocity * boat_dt;
+        rollAngle  += rollVelocity  * boat_dt;
         const pitch = pitchAngle;
         const roll  = rollAngle;
         gl.uniform1f(gl.getUniformLocation(program, 'shipRotation'), shipRot);
