@@ -532,7 +532,7 @@ Promise.all([
             const rightH = getWavesHeight([shipModelX + Math.sin(shipModelRot)*delta,shipModelZ - Math.cos(shipModelRot)*delta], time, uniforms.normIter);
             const pitchForce = (frontH - backH) * pitchStiffness;;
             const rollForce  = (leftH - rightH) * rollStiffness;
-            const dt = 0.016;
+            const dt = 0.16;
             const pitchRestoring = 2.5;
             const rollRestoring  = 2.5;
             pitchVelocity += (pitchForce - pitchAngle * pitchRestoring - pitchVelocity * pitchDamping) * dt;
@@ -594,7 +594,26 @@ Promise.all([
         // Calculate ship position moving in circle
         gl.uniform3f(gl.getUniformLocation(program, 'shipPos'), shipX, watersdfY, shipZ);
         gl.uniform1f(gl.getUniformLocation(program, 'shipRadius'), 2.0);
+        // Calculate SDF ship pitch and roll
+        const delta = 0.3;
+        const frontH = getWavesHeight([shipX + Math.cos(shipRot)*delta,shipZ + Math.sin(shipRot)*delta], time, uniforms.normIter);
+        const backH  = getWavesHeight([shipX - Math.cos(shipRot)*delta,shipZ - Math.sin(shipRot)*delta], time, uniforms.normIter);
+        const leftH  = getWavesHeight([shipX - Math.sin(shipRot)*delta,shipZ + Math.cos(shipRot)*delta],time, uniforms.normIter);
+        const rightH = getWavesHeight([shipX + Math.sin(shipRot)*delta,shipZ - Math.cos(shipRot)*delta], time, uniforms.normIter);
+        const pitchForce = (frontH - backH) * pitchStiffness;;
+        const rollForce  = (leftH - rightH) * rollStiffness;
+        const dt = 0.16;
+        const pitchRestoring = 2.5;
+        const rollRestoring  = 2.5;
+        pitchVelocity += (pitchForce - pitchAngle * pitchRestoring - pitchVelocity * pitchDamping) * dt;
+        rollVelocity  += (rollForce  - rollAngle  * rollRestoring  - rollVelocity  * rollDamping)  * dt;
+        pitchAngle += pitchVelocity * dt;
+        rollAngle  += rollVelocity  * dt;
+        const pitch = pitchAngle;
+        const roll  = rollAngle;
         gl.uniform1f(gl.getUniformLocation(program, 'shipRotation'), shipRot);
+        gl.uniform1f(gl.getUniformLocation(program, 'shipPitch'), pitch);
+        gl.uniform1f(gl.getUniformLocation(program, 'shipRoll'), roll);
 
         gl.uniformMatrix4fv(locView, false, boatView);
         gl.uniformMatrix4fv(locProj, false, boatProj);
