@@ -669,6 +669,14 @@ Promise.all([
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        // boat model distance from center to bottom
+        const scale = 1.5 / 100.0;
+        const shipModelX = Math.cos(time * shipSpeed - Math.PI/2) * shipRadius;
+        const shipModelZ = Math.sin(time * shipSpeed - Math.PI/2) * shipRadius;
+        const yOffset = 25.895000457763672;
+        const waveH = getWavesHeight([shipModelX, shipModelZ], time, uniforms.normIter);
+        const waterY = waveH * uniforms.waterDepth - uniforms.waterDepth - yOffset * scale * 0.5;
+        gl.uniform3f(gl.getUniformLocation(program, 'MODEL_BOAT_POSITION'), shipModelX, waterY, shipModelZ);
 
         if (boatProgram && boatVAO) {
             gl.enable(gl.DEPTH_TEST);
@@ -677,14 +685,6 @@ Promise.all([
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, boatTexture);
             gl.uniform1i(boat_uTexture, 0);
-
-            // boat model distance from center to bottom
-            const scale = 1.5 / 100.0;
-            const shipModelX = Math.cos(time * shipSpeed - Math.PI/2) * shipRadius;
-            const shipModelZ = Math.sin(time * shipSpeed - Math.PI/2) * shipRadius;
-            const yOffset = 25.895000457763672;
-            const waveH = getWavesHeight([shipModelX, shipModelZ], time, uniforms.normIter);
-            const waterY = waveH * uniforms.waterDepth - uniforms.waterDepth - yOffset * scale * 0.5;
             // world translation model
             const worldTranslate = new Float32Array([
                 scale,0,0,0,
@@ -760,6 +760,7 @@ Promise.all([
         gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_NORMAL'), uniforms.normIter);
         gl.uniform1f(gl.getUniformLocation(program, 'SUN_ROTATION_SPEED'), uniforms.sunRotationSpeed);
         gl.uniform1f(gl.getUniformLocation(program, 'STAR_DENSITY'), uniforms.starDensity);
+        gl.uniform1f(gl.getUniformLocation(program, 'BOAT_SPEED'), shipSpeed);
 
         // Calculate ship position moving in circle
         gl.uniform3f(gl.getUniformLocation(program, 'shipPos'), shipX, watersdfY, shipZ);
