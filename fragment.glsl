@@ -14,6 +14,8 @@ uniform float SUN_ROTATION_SPEED;
 uniform vec3 shipPos;
 uniform float shipRadius;
 uniform float shipRotation;
+uniform float shipPitch;
+uniform float shipRoll;
 uniform float STAR_DENSITY;
 uniform vec3 camPos;
 uniform vec3 camTarget;
@@ -491,16 +493,28 @@ BoatHit raymarchBoat(vec3 origin, vec3 ray) {
     float matID = 1.0;
     float boatScale = 1.0;
     float angle = shipRotation;
-    mat3 rot = mat3(
+    float pitch = shipPitch;
+    float roll = shipRoll;
+    mat3 rotY = mat3(
         cos(angle), 0.0, -sin(angle),
         0.0, 1.0, 0.0,
         sin(angle), 0.0, cos(angle)
+    );
+    mat3 rotX = mat3(
+        1.0, 0.0, 0.0,
+        0.0, cos(pitch), -sin(pitch),
+        0.0, sin(pitch), cos(pitch)
+    );
+    mat3 rotZ = mat3(
+        cos(roll), -sin(roll), 0.0,
+        sin(roll), cos(roll), 0.0,
+        0.0, 0.0, 1.0
     );
 
     // Raymarch boat
     for(int i = 0; i < 100; i++) {
         vec3 p = origin + ray * tBoat;
-        vec3 localP = rot * (p - shipPos) / boatScale;
+        vec3 localP = rotX * rotY * rotZ * (p - shipPos) / boatScale;
         vec2 speedBoat = sdfSpeedBoat(localP) * boatScale;
         dBoat = speedBoat.x;
         matID = speedBoat.y;
