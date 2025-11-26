@@ -16,6 +16,8 @@ uniform float shipRadius;
 uniform float shipRotation;
 uniform float shipPitch;
 uniform float shipRoll;
+uniform float BOAT_SPEED;
+uniform vec3 MODEL_BOAT_POSITION;
 uniform float STAR_DENSITY;
 uniform vec3 camPos;
 uniform vec3 camTarget;
@@ -27,6 +29,7 @@ out vec4 fragColor;
 
 #define NormalizedMouse (iMouse / iResolution)
 #define DEBUG_MODE (0) // 0 = normal render, 1 = wave height map, 2 = normal vectors
+#define PI 3.14159265359
 
 struct BoatHit {
     bool hit;
@@ -537,15 +540,20 @@ BoatHit raymarchBoat(vec3 origin, vec3 ray) {
     return result;
 }
 
-// Foam
-float foamFromBoat(vec3 worldPos, vec3 boatPos)
+// Foam for single boat
+float foamFromBoat(vec3 worldPos, vec3 boatPos, vec2 boatDir)
 {
     float d = length(worldPos.xz - boatPos.xz);
     vec2 dir = normalize(worldPos.xz - boatPos.xz);
-    vec2 boatDir = vec2(cos(shipRotation), sin(shipRotation));
     float front = dot(dir, boatDir);
-    float tailMask = smoothstep(0.0, -0.3, front);
-    float width = 1.5;
+    float side  = dot(dir, vec2(-boatDir.y, boatDir.x));
+    float vAngle = radians(20.0);  
+    float angleMask = 1.0 - smoothstep(-1.0, -cos(vAngle), front);
+    float sideMask  = 1.0 - abs(side);
+    float tailMask  = angleMask * sideMask;
+    // Foam area depends on boat speed --- larger speed = longer foam tail
+    // boat speed if from 0.01 to 1.0
+    float width = 0.7/ BOAT_SPEED;
     float foam = exp(-d * width) * tailMask;
     foam *= 0.5 + 0.5 * noise(worldPos.xz * 3.0 + iTime * 0.8);
     return foam;
@@ -685,9 +693,10 @@ void main()
     vec3 scattering = vec3(0.0293, 0.0698, 0.1717) * 0.1 * (0.2 + (waterHitPos.y + WATER_DEPTH) / WATER_DEPTH);
 
     // foam
-    float foam = foamFromBoat(waterHitPos, shipPos);
-    vec3 foamColor = vec3(0.77f, 0.87f, 0.98f);
-    float foamIntensity = clamp(foam * 0.5, 0.0, 0.7);
+    float foam = foamFromBoat(waterHitPos, shipPos, vec2(cos(shipRotation+PI/2.0), sin(shipRotation+PI/2.0)));
+    foam += foamFromBoat(waterHitPos, MODEL_BOAT_POSITION, vec2(cos(shipRotation), sin(shipRotation)));
+    vec3 foamColor = vec3(0.92f, 0.95f, 0.97f);
+    float foamIntensity = clamp(foam * 3.5, 0.0, 5.0);
     float sunLit = max(dot(N, normalize(getSunDirection())), 0.0);
     foamIntensity *= mix(0.4, 1.0, sunLit);
     vec3 C = fresnel * reflection + scattering;
