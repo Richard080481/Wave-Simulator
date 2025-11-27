@@ -318,14 +318,50 @@ float getwaves(vec2 position, int iterations)
     return sumOfValues / sumOfWeights;
 }
 
+float kelvinWaveField(float dist, float angleDiff, float speed)
+{
+    // influence distance depends on speed
+    float maxRange = mix(2.0, 7.0, speed);
+    float rangeMask = clamp(1.0 - dist / maxRange, 0.0, 1.0);
+    if(rangeMask <= 0.0) return 0.0;
+
+    const float K = 0.33;   // Kelvin angle
+    float a = abs(angleDiff);
+    float angleAttenuation = smoothstep(K, 0.0, a);
+
+    // frequency depends on speed
+    float baseFreq = mix(12.0, 4.0, speed);
+    float freq1 = baseFreq;
+    float freq2 = baseFreq * 0.62;
+    float freq3 = baseFreq * 0.41;
+    float t = iTime * mix(4.0, 7.0, speed);
+
+    // multi-layer waves
+    float w1 = sin(dist * freq1 - t);
+    float w2 = sin(dist * freq2 - t * 0.8);
+    float w3 = sin(dist * freq3 - t * 0.6);
+    float combined = w1 * 0.5 + w2 * 0.35 + w3 * 0.2;
+
+    // decrease with distance
+    float decay = 1.0 / sqrt(dist + 1.0);
+
+    // feather noise
+    float feather = 0.75 + 0.25 * noise(vec2(dist * 0.6, t * 0.05));
+    return combined * decay * feather * angleAttenuation * rangeMask;
+}
+
 // Wake for single boat
 float boatWake(vec2 p, vec2 boatPos, float boatRot, float speed)
 {
     vec2 d = p - boatPos;
     float dist = length(d);
     float boatAngle = boatRot - PI / 2.0; // boat direction
-    // Bow wave
     vec2 forward = vec2(cos(boatAngle), sin(boatAngle));
+    // v wake
+    float adiff = acos(dot(normalize(d), forward));
+    float v = kelvinWaveField(dist, adiff, speed);
+
+    // Bow wave
     float front = dot(normalize(d), forward);
     float range = mix(0.5, 1.5, speed);
     float bowMask = smoothstep(0.0, 0.2 * range, front);
@@ -333,7 +369,7 @@ float boatWake(vec2 p, vec2 boatPos, float boatRot, float speed)
     float tailMask = 1.0 - front;
     float prop = tailMask * exp(-dist * (3.0 / range)) * noise(p*4.0 + iTime*3.0) * 0.2;
 
-    return bow + prop;
+    return v +bow + prop;
 }
 
 // Raymarches the ray from top water layer boundary to low water layer boundary
@@ -365,7 +401,7 @@ float raymarchwater(vec3 camera, vec3 start, vec3 end, float depth)
         // the height is from 0 to -depth
         float base = getwaves(pos.xz, ITERATIONS_RAYMARCH);
         float sdfwake = boatWake(pos.xz, shipPos.xz, shipRotation, BOAT_SPEED);
-        float modelBoatRot = shipRotation + PI/2.0;
+        float modelBoatRot = shipRotation - PI/2.0;
         float modelwake = boatWake(pos.xz, MODEL_BOAT_POSITION.xz, modelBoatRot, BOAT_SPEED);
         float height = (base + sdfwake + modelwake) * depth - depth;
         // if the waves height almost nearly matches the ray height, assume its a hit and return the hit distance
@@ -391,7 +427,7 @@ float raymarchwater(vec3 camera, vec3 start, vec3 end, float depth)
 vec3 normal(vec2 pos, float e, float depth)
 {
     vec2 ex = vec2(e, 0.0);
-    float H =  (getwaves(pos, ITERATIONS_NORMAL) + boatWake(pos, shipPos.xz, shipRotation, BOAT_SPEED) + boatWake(pos, MODEL_BOAT_POSITION.xz, shipRotation + PI/2.0, BOAT_SPEED)) * depth;
+    float H =  (getwaves(pos, ITERATIONS_NORMAL) + boatWake(pos, shipPos.xz, shipRotation, BOAT_SPEED) + boatWake(pos, MODEL_BOAT_POSITION.xz, shipRotation - PI/2.0, BOAT_SPEED)) * depth;
     vec3 a = vec3(pos.x, H, pos.y);
     return normalize(cross(
         a - vec3(pos.x - e, getwaves(pos - ex, ITERATIONS_NORMAL) * depth, pos.y),
