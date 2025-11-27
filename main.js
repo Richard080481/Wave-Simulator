@@ -385,7 +385,7 @@ Promise.all([
     boatProgram = gl.createProgram();
     gl.attachShader(boatProgram, boatVertShader);
     gl.attachShader(boatProgram, boatFragShader);
-    gl.linkProgram(boatProgram);
+    gl.linkProgram(boatProgram); 
 
     // parse boat model
     const boatMesh = parseOBJ(boatObjText);
