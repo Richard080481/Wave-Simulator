@@ -322,6 +322,25 @@ float raymarchwater(vec3 camera, vec3 start, vec3 end, float depth)
 {
     vec3 pos = start;
     vec3 dir = normalize(end - start);
+    float angle = shipRotation;
+    float pitch = shipPitch;
+    float roll = shipRoll;
+    float boatScale = 1.0;
+    mat3 rotY = mat3(
+        cos(angle), 0.0, -sin(angle),
+        0.0, 1.0, 0.0,
+        sin(angle), 0.0, cos(angle)
+    );
+    mat3 rotX = mat3(
+        1.0, 0.0, 0.0,
+        0.0, cos(pitch), -sin(pitch),
+        0.0, sin(pitch), cos(pitch)
+    );
+    mat3 rotZ = mat3(
+        cos(roll), -sin(roll), 0.0,
+        sin(roll), cos(roll), 0.0,
+        0.0, 0.0, 1.0
+    );
     for(int i=0; i < 64; i++)
     {
         // the height is from 0 to -depth
@@ -330,6 +349,12 @@ float raymarchwater(vec3 camera, vec3 start, vec3 end, float depth)
         if(height + 0.01 > pos.y)
         {
             return distance(pos, camera);
+        }
+        // check water not in boat
+        vec3 localPos = rotZ * rotY * rotX * (pos - shipPos) / boatScale;
+        float boatDist = sdfSpeedBoat(localPos).x;
+        if (boatDist < 0.0){
+            return 9999.9;
         }
         // iterate forwards according to the height mismatch
         pos += dir * (pos.y - height);
@@ -517,7 +542,7 @@ BoatHit raymarchBoat(vec3 origin, vec3 ray) {
     // Raymarch boat
     for(int i = 0; i < 100; i++) {
         vec3 p = origin + ray * tBoat;
-        vec3 localP = rotX * rotY * rotZ * (p - shipPos) / boatScale;
+        vec3 localP = rotZ * rotY * rotX * (p - shipPos) / boatScale;
         vec2 speedBoat = sdfSpeedBoat(localP) * boatScale;
         dBoat = speedBoat.x;
         matID = speedBoat.y;
@@ -532,6 +557,9 @@ BoatHit raymarchBoat(vec3 origin, vec3 ray) {
             result.color = color;
             result.t = tBoat;
             return result;
+        }
+        else if (dBoat < 0.0){
+            gl_FragDepth = 1.0;
         }
         tBoat += dBoat;
         if(tBoat > maxDist)
