@@ -317,6 +317,25 @@ float getwaves(vec2 position, int iterations)
     // calculate and return
     return sumOfValues / sumOfWeights;
 }
+
+// Wake for single boat
+float boatWake(vec2 p, vec2 boatPos, float boatRot, float speed)
+{
+    vec2 d = p - boatPos;
+    float dist = length(d);
+    float boatAngle = boatRot - PI / 2.0; // boat direction
+    // Bow wave
+    vec2 forward = vec2(cos(boatAngle), sin(boatAngle));
+    float front = dot(normalize(d), forward);
+    float range = mix(0.5, 1.5, speed);
+    float bowMask = smoothstep(0.0, 0.2 * range, front);
+    float bow = bowMask * exp(-dist * (3.0 / range)) * 0.25;
+    float tailMask = 1.0 - front;
+    float prop = tailMask * exp(-dist * (3.0 / range)) * noise(p*4.0 + iTime*3.0) * 0.2;
+
+    return bow + prop;
+}
+
 // Raymarches the ray from top water layer boundary to low water layer boundary
 float raymarchwater(vec3 camera, vec3 start, vec3 end, float depth)
 {
@@ -344,7 +363,11 @@ float raymarchwater(vec3 camera, vec3 start, vec3 end, float depth)
     for(int i=0; i < 64; i++)
     {
         // the height is from 0 to -depth
-        float height = getwaves(pos.xz, ITERATIONS_RAYMARCH) * depth - depth;
+        float base = getwaves(pos.xz, ITERATIONS_RAYMARCH);
+        float sdfwake = boatWake(pos.xz, shipPos.xz, shipRotation, BOAT_SPEED);
+        float modelBoatRot = shipRotation + PI/2.0;
+        float modelwake = boatWake(pos.xz, MODEL_BOAT_POSITION.xz, modelBoatRot, BOAT_SPEED);
+        float height = (base + sdfwake + modelwake) * depth - depth;
         // if the waves height almost nearly matches the ray height, assume its a hit and return the hit distance
         if(height + 0.01 > pos.y)
         {
@@ -368,7 +391,7 @@ float raymarchwater(vec3 camera, vec3 start, vec3 end, float depth)
 vec3 normal(vec2 pos, float e, float depth)
 {
     vec2 ex = vec2(e, 0.0);
-    float H = getwaves(pos, ITERATIONS_NORMAL) * depth;
+    float H =  (getwaves(pos, ITERATIONS_NORMAL) + boatWake(pos, shipPos.xz, shipRotation, BOAT_SPEED) + boatWake(pos, MODEL_BOAT_POSITION.xz, shipRotation + PI/2.0, BOAT_SPEED)) * depth;
     vec3 a = vec3(pos.x, H, pos.y);
     return normalize(cross(
         a - vec3(pos.x - e, getwaves(pos - ex, ITERATIONS_NORMAL) * depth, pos.y),
@@ -580,8 +603,8 @@ float foamFromBoat(vec3 worldPos, vec3 boatPos, vec2 boatDir)
     float sideMask  = 1.0 - abs(side);
     float tailMask  = angleMask * sideMask;
     // Foam area depends on boat speed --- larger speed = longer foam tail
-    // boat speed if from 0.01 to 1.0
-    float width = 0.7/ BOAT_SPEED;
+    // boat speed from 0.01 to 1.0
+    float width = mix(1.2,0.6,BOAT_SPEED);
     float foam = exp(-d * width) * tailMask;
     foam *= 0.5 + 0.5 * noise(worldPos.xz * 3.0 + iTime * 0.8);
     return foam;
@@ -724,7 +747,7 @@ void main()
     float foam = foamFromBoat(waterHitPos, shipPos, vec2(cos(shipRotation+PI/2.0), sin(shipRotation+PI/2.0)));
     foam += foamFromBoat(waterHitPos, MODEL_BOAT_POSITION, vec2(cos(shipRotation), sin(shipRotation)));
     vec3 foamColor = vec3(0.92f, 0.95f, 0.97f);
-    float foamIntensity = clamp(foam * 3.5, 0.0, 5.0);
+    float foamIntensity = clamp(foam * 5.5, 0.0, 10.0);
     float sunLit = max(dot(N, normalize(getSunDirection())), 0.0);
     foamIntensity *= mix(0.4, 1.0, sunLit);
     vec3 C = fresnel * reflection + scattering;
