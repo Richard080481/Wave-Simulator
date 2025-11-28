@@ -317,6 +317,10 @@ function parseOBJ(text) {
             const i1 = getVertexIndex(parts[2]);
             const i2 = getVertexIndex(parts[3]);
             indices.push(i0, i1, i2);
+            if (parts.length === 5) {
+                const i3 = getVertexIndex(parts[4]);
+                indices.push(i0, i2, i3);
+            }
         }
     }
 
@@ -482,7 +486,7 @@ Promise.all([
     boat_uProj  = gl.getUniformLocation(boatProgram, 'uProj');
     boat_uColor = gl.getUniformLocation(boatProgram, 'uColor');
     boat_uLightDir = gl.getUniformLocation(boatProgram, 'uLightDir');
-    const boatTexture = loadTexture('boat_d.jpg');
+    const boatTexture = loadTexture('boat_diffuse_v1.jpg');
     const boat_uTexture = gl.getUniformLocation(boatProgram, 'uTexture');
 
     // simple camera setup
@@ -737,7 +741,7 @@ Promise.all([
 
             gl.uniform3f(boat_uColor, 1.0, 1.0, 1.0);
 
-            gl.uniform3f(boat_uLightDir, 0.0, 1.0, 0.0);
+            gl.uniform3f(boat_uLightDir, 0.0, 0.0, -1.0);
 
             gl.drawElements(gl.TRIANGLES, boatIndexCount, gl.UNSIGNED_SHORT, 0);
             gl.bindVertexArray(null);
