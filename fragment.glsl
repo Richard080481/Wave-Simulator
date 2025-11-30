@@ -169,7 +169,7 @@ vec3 generateNebula(vec3 rayDir, float sunHeight)
     // Only visible during night / near-night conditions
     float nightFactor = smoothstep(-0.1, -0.35, sunHeight); // Stronger when sun goes below horizon
     if(nightFactor <= 0.0) return vec3(0.0);
-    if(rayDir.y < 0.02) return vec3(0.0);                   // Avoid foggy band right at the horizon
+    if(rayDir.y < 0.02) return vec3(0.0);
 
     // Project ray direction into a 2D "sky coordinate" (similar to stars)
     vec2 skyCoord = vec2(
@@ -196,9 +196,9 @@ vec3 generateNebula(vec3 rayDir, float sunHeight)
     // Very small contributions can be skipped for performance
     if(finalMask <= 0.001) return vec3(0.0);
 
-    // Two-color gradient nebula (feel free to tweak colors)
-    vec3 colorA = vec3(0.40, 0.10, 0.65);      // Purple tint
-    vec3 colorB = vec3(0.10, 0.60, 0.85);      // Cyan-blue tint
+    // Two-color gradient nebula
+    vec3 colorA = vec3(1.00,0.65,0.15);
+    vec3 colorB = vec3(0.10,0.75,0.85);
     float t = clamp(n * 1.3, 0.0, 1.0);
     vec3 nebulaColor = mix(colorA, colorB, t);
 
@@ -241,7 +241,8 @@ vec3 generateStars(vec3 rayDir)
     float onPrev = step(1.0 - density, rndPrev);           // 1 -> star present last second
 
     // Smooth crossfade between last/this second
-    float on = mix(onPrev, onNow, f);
+    float ff = smoothstep(0.0, 1.0, f);
+    float on = mix(onPrev, onNow, ff);
 
     if(on <= 0.0) return vec3(0.0);
 
@@ -257,10 +258,11 @@ vec3 generateStars(vec3 rayDir)
     float sizePulse = 0.004 * sin(6.2831853 * f);
     star = smoothstep(0.10 + sizePulse, 0.0, dist);
 
+    star *= on;
+
     // Subtle color jitter per star
     float tint = hash(gridId + vec2(19.0, 23.0));
     vec3 starTint = mix(vec3(0.95, 0.95, 1.00), vec3(1.00, 0.95, 0.90), tint);
-
     return starTint * star;
 }
 
