@@ -8,12 +8,13 @@ in vec2 vUV;
 uniform vec3 uLightDir; // light direction in world space
 uniform sampler2D uTexture; // texture sampler
 uniform vec3 uCameraPos; // camera position in world space
+uniform vec3 shipModelPos;
 out vec4 fragColor;
 
 void main() {
     vec3 N = normalize(vNormal);
-    vec3 L = normalize(-uLightDir);
-    vec3 V = normalize(uCameraPos-vWorldPos);
+    vec3 L = normalize(shipModelPos - uLightDir);
+    vec3 V = normalize(uCameraPos - vWorldPos);
     vec3 H = normalize(L + V);
     vec3 texColor = texture(uTexture, vUV).rgb;
 

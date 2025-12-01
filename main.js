@@ -755,6 +755,7 @@ Promise.all([
             gl.uniformMatrix4fv(gl.getUniformLocation(boatProgram, 'uProj'),  false, boatProj);
             gl.uniform3f(gl.getUniformLocation(boatProgram, 'uLightDir'), sunDir[0], -sunDir[2], sunDir[1]);
             gl.uniform3f(gl.getUniformLocation(boatProgram, "uCameraPos"),camera.eye[0], camera.eye[1], camera.eye[2]);
+            gl.uniform3f(gl.getUniformLocation(boatProgram, 'shipModelPos'), shipModelX, -shipModelZ, waterY);
 
             gl.drawElements(gl.TRIANGLES, boatIndexCount, gl.UNSIGNED_SHORT, 0);
             gl.bindVertexArray(null);

@@ -451,16 +451,6 @@ mat3 createRotationMatrixAxisAngle(vec3 axis, float angle)
 }
 
 // Helper function that generates camera ray based on UV and mouse
-// vec3 getRay(vec2 fragCoord)
-// {
-//     vec2 uv = ((fragCoord / iResolution) * 2.0 - 1.0) * vec2(iResolution.x / iResolution.y, 1.0);
-//     // for fisheye, uncomment following line and comment the next one
-//     // vec3 proj = normalize(vec3(uv.x, uv.y, 1.0) + vec3(uv.x, uv.y, -1.0) * pow(length(uv), 2.0) * 0.05);
-//     vec3 proj = normalize(vec3(uv.x, uv.y, 1.5));
-//     return createRotationMatrixAxisAngle(vec3(0.0, -1.0, 0.0), 3.0 * ((NormalizedMouse.x + 0.5) * 2.0 - 1.0))
-//         * createRotationMatrixAxisAngle(vec3(1.0, 0.0, 0.0), 0.5 + 1.5 * (((NormalizedMouse.y == 0.0 ? 0.27 : NormalizedMouse.y) * 1.0) * 2.0 - 1.0))
-//         * proj;
-// }
 vec3 getRay(vec2 fragCoord)
 {
     // Convert fragment coordinate to NDC space
