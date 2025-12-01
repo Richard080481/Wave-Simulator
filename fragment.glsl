@@ -10,7 +10,7 @@ uniform float WATER_DEPTH;
 uniform float CAMERA_HEIGHT;
 uniform int ITERATIONS_NORMAL;
 uniform int ITERATIONS_RAYMARCH;
-uniform float SUN_ROTATION_SPEED;
+uniform vec3 SUN_DIR;
 uniform vec3 shipPos;
 uniform float shipRadius;
 uniform float shipRotation;
@@ -496,33 +496,16 @@ vec3 extra_cheap_atmosphere(vec3 raydir, vec3 sundir)
     return bluesky2 * (1.0 + 1.0 * pow(1.0 - raydir.y, 3.0));
 }
 
-// sun motion, just fake it, going up and down vertically
-vec3 getSunDirection()
-{
-    float t = iTime * 0.5 * SUN_ROTATION_SPEED;
-    float r = 2.0;
-    float cx = 0.0;
-    float cy = 0.0;
-
-    float x = cx + r * cos(t);
-    float y = cy + r * sin(t);
-    float z = 3.0;
-
-    // Camera is at (0,0,0) looking towards +Z
-    // return normalize(vec3(0, 0, 1));
-    return normalize(vec3(x, y, z));
-}
-
 // Get atmosphere color for given direction
 vec3 getAtmosphere(vec3 dir)
 {
-    return extra_cheap_atmosphere(dir, getSunDirection()) * 0.5;
+    return extra_cheap_atmosphere(dir, SUN_DIR) * 0.5;
 }
 
 // Get sun color for given direction
 float getSun(vec3 dir)
 {
-    return pow(max(0.0, dot(dir, getSunDirection())), 720.0) * 210.0;
+    return pow(max(0.0, dot(dir, SUN_DIR)), 720.0) * 210.0;
 }
 
 // Great tonemapping function from other shader: https://www.shadertoy.com/view/XsGfWV
@@ -609,7 +592,7 @@ BoatHit raymarchBoat(vec3 origin, vec3 ray) {
         matID = speedBoat.y;
         if(dBoat < 0.001) {
             vec3 Nboat = boatNormal(localP);
-            vec3 L = normalize(getSunDirection());
+            vec3 L = normalize(SUN_DIR);
             vec3 V = normalize(-ray);        // view direction
             vec3 H = normalize(L + V);       // half vector
             vec3 R = reflect(ray, Nboat);
@@ -654,7 +637,7 @@ void main()
 
     if(ray.y >= 0.0)
     {
-        vec3 sunDir = getSunDirection();
+        vec3 sunDir = SUN_DIR;
         float sunHeight = sunDir.y;
 
         //ranges to match actual sun motion
@@ -786,7 +769,7 @@ void main()
     foam += foamFromBoat(waterHitPos, MODEL_BOAT_POSITION, vec2(cos(shipRotation), sin(shipRotation)));
     vec3 foamColor = vec3(0.92f, 0.95f, 0.97f);
     float foamIntensity = clamp(foam * 5.5, 0.0, 10.0);
-    float sunLit = max(dot(N, normalize(getSunDirection())), 0.0);
+    float sunLit = max(dot(N, normalize(SUN_DIR)), 0.0);
     foamIntensity *= mix(0.4, 1.0, sunLit);
     vec3 C = fresnel * reflection + scattering;
     C = mix(C, foamColor, foamIntensity);

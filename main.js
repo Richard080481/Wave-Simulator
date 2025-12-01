@@ -18,7 +18,8 @@ const uniforms = {
     rayIter: 12,
     normIter: 36,
     sunRotationSpeed: 1.0,
-    starDensity: 0.03
+    starDensity: 0.03,
+    boatRotationSpeed: 5.0
 };
 
 const camera = {
@@ -33,7 +34,6 @@ let boatIndexCount = 0;
 let boatModel = mat4Identity();
 let boatView = mat4Identity();
 let boatProj = mat4Identity();
-let boat_uModel, boat_uView, boat_uProj, boat_uColor, boat_uLightDir;
 let pitchAngle = 0;
 let pitchVelocity = 0;
 let rollAngle = 0;
@@ -133,6 +133,27 @@ if (controlsCloseBtn && controlsEl && controlsOpenBtn) {
             controlsOpenBtn.hidden = false;
         }
     });
+}
+
+function normalize(v) {
+    const len = Math.hypot(v[0], v[1], v[2]);
+    return len > 0 ? [v[0] / len, v[1] / len, v[2] / len] : [0, 0, 0];
+}
+
+// sun motion, just fake it, going up and down vertically
+function getSunDirection(time) {
+    const t = time * 0.5 * uniforms.sunRotationSpeed;
+    const r = 2.0;
+    const cx = 0.0;
+    const cy = 0.0;
+
+    const x = cx + r * Math.cos(t);
+    const y = cy + r * Math.sin(t);
+    const z = 3.0;
+
+    // Camera is at (0,0,0) looking towards +Z
+    // return normalize(vec3(0, 0, 1));
+    return normalize([x, y, z]);
 }
 
 function compileShader(type, source) {
@@ -481,11 +502,6 @@ Promise.all([
 
     // get uniform locations
     gl.useProgram(boatProgram);
-    boat_uModel = gl.getUniformLocation(boatProgram, 'uModel');
-    boat_uView  = gl.getUniformLocation(boatProgram, 'uView');
-    boat_uProj  = gl.getUniformLocation(boatProgram, 'uProj');
-    boat_uColor = gl.getUniformLocation(boatProgram, 'uColor');
-    boat_uLightDir = gl.getUniformLocation(boatProgram, 'uLightDir');
     const boatTexture = loadTexture('boat_diffuse_v1.jpg');
     const boat_uTexture = gl.getUniformLocation(boatProgram, 'uTexture');
 
@@ -581,9 +597,6 @@ Promise.all([
     });
 
     // animation timing / pause handling
-    const slider = document.getElementById('boatRotationSpeed');
-    uniforms.boatRotationSpeed = parseFloat(slider.value);
-    document.getElementById('boatSpeedVal').textContent = slider.value;
     const startTime = Date.now();
     let pausedDuration = 0; // accumulated time while paused (ms)
     let isPaused = false;
@@ -666,6 +679,7 @@ Promise.all([
         const watersdfY = wavesdfH * uniforms.waterDepth - uniforms.waterDepth;
         const invView = mat4Inverse(boatView);
         const invProj = mat4Inverse(boatProj);
+        const sunDir = getSunDirection(time);
         // camera.eye[1] is controlled by the camHeight slider initially and by keyboard
         // vertical movement (Space / Ctrl). Do not override it here.
         boatView = mat4LookAt(camera.eye, camera.center, camera.up);
@@ -735,13 +749,12 @@ Promise.all([
             ]);
             boatModel = mat4Multiply(rotZ,mat4Multiply(rotX,mat4Multiply(rot, worldTranslate)));
 
-            gl.uniformMatrix4fv(boat_uModel, false, boatModel);
-            gl.uniformMatrix4fv(boat_uView,  false, boatView);
-            gl.uniformMatrix4fv(boat_uProj,  false, boatProj);
-
-            gl.uniform3f(boat_uColor, 1.0, 1.0, 1.0);
-
-            gl.uniform3f(boat_uLightDir, 0.0, 0.0, -1.0);
+            // set uniforms
+            gl.uniformMatrix4fv(gl.getUniformLocation(boatProgram, 'uModel'), false, boatModel);
+            gl.uniformMatrix4fv(gl.getUniformLocation(boatProgram, 'uView'),  false, boatView);
+            gl.uniformMatrix4fv(gl.getUniformLocation(boatProgram, 'uProj'),  false, boatProj);
+            gl.uniform3f(gl.getUniformLocation(boatProgram, 'uLightDir'), sunDir[0], -sunDir[2], sunDir[1]);
+            gl.uniform3f(gl.getUniformLocation(boatProgram, "uCameraPos"),camera.eye[0], camera.eye[1], camera.eye[2]);
 
             gl.drawElements(gl.TRIANGLES, boatIndexCount, gl.UNSIGNED_SHORT, 0);
             gl.bindVertexArray(null);
@@ -762,7 +775,7 @@ Promise.all([
         gl.uniform1f(gl.getUniformLocation(program, 'CAMERA_HEIGHT'), uniforms.camHeight);
         gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_RAYMARCH'), uniforms.rayIter);
         gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_NORMAL'), uniforms.normIter);
-        gl.uniform1f(gl.getUniformLocation(program, 'SUN_ROTATION_SPEED'), uniforms.sunRotationSpeed);
+        gl.uniform3f(gl.getUniformLocation(program, 'SUN_DIR'), sunDir[0],sunDir[1], sunDir[2]);
         gl.uniform1f(gl.getUniformLocation(program, 'STAR_DENSITY'), uniforms.starDensity);
         gl.uniform1f(gl.getUniformLocation(program, 'BOAT_SPEED'), shipSpeed);
 
