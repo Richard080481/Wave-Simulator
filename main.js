@@ -229,6 +229,9 @@ function mat4Multiply(a, b) {
     return out;
 }
 
+// perspective projection matrix
+// fovy: vertical field of view in radians
+// aspect: width / height
 function mat4Perspective(fovy, aspect, near, far) {
     const f = 1.0 / Math.tan(fovy / 2);
     const nf = 1 / (near - far);
@@ -490,7 +493,7 @@ Promise.all([
     const boatPosLoc = gl.getAttribLocation(boatProgram, 'position');
     const boatNormalLoc = gl.getAttribLocation(boatProgram, 'normal');
     const boatUVLoc = gl.getAttribLocation(boatProgram, 'uv');
-    const stride = 8 * 4; // 6 floats * 4 bytes
+    const stride = 8 * 4; // 8 floats * 4 bytes
     gl.enableVertexAttribArray(boatPosLoc);
     gl.vertexAttribPointer(boatPosLoc, 3, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(boatNormalLoc);
@@ -753,7 +756,7 @@ Promise.all([
             gl.uniformMatrix4fv(gl.getUniformLocation(boatProgram, 'uModel'), false, boatModel);
             gl.uniformMatrix4fv(gl.getUniformLocation(boatProgram, 'uView'),  false, boatView);
             gl.uniformMatrix4fv(gl.getUniformLocation(boatProgram, 'uProj'),  false, boatProj);
-            gl.uniform3f(gl.getUniformLocation(boatProgram, 'uLightDir'), sunDir[0], -sunDir[2], sunDir[1]);
+            gl.uniform3f(gl.getUniformLocation(boatProgram, 'uLightDir'), sunDir[0], sunDir[1], -sunDir[2]);
             gl.uniform3f(gl.getUniformLocation(boatProgram, "uCameraPos"),camera.eye[0], camera.eye[1], camera.eye[2]);
             gl.uniform3f(gl.getUniformLocation(boatProgram, 'shipModelPos'), shipModelX, -shipModelZ, waterY);
 

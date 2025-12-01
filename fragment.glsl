@@ -362,12 +362,12 @@ float boatWake(vec2 p, vec2 boatPos, float boatRot, float speed)
     // v wake
     float adiff = acos(dot(normalize(d), forward));
     float v = kelvinWaveField(dist, adiff, speed);
-
     // Bow wave
     float front = dot(normalize(d), forward);
     float range = mix(0.5, 1.5, speed);
     float bowMask = smoothstep(0.0, 0.2 * range, front);
     float bow = bowMask * exp(-dist * (3.0 / range)) * 0.25;
+    // Propeller wash
     float tailMask = 1.0 - front;
     float prop = tailMask * exp(-dist * (3.0 / range)) * noise(p*4.0 + iTime*3.0) * 0.2;
 
@@ -406,16 +406,16 @@ float raymarchwater(vec3 camera, vec3 start, vec3 end, float depth)
         float modelBoatRot = shipRotation - PI/2.0;
         float modelwake = boatWake(pos.xz, MODEL_BOAT_POSITION.xz, modelBoatRot, BOAT_SPEED);
         float height = (base + sdfwake + modelwake) * depth - depth;
-        // if the waves height almost nearly matches the ray height, assume its a hit and return the hit distance
-        if(height + 0.01 > pos.y)
-        {
-            return distance(pos, camera);
-        }
         // check water not in boat
         vec3 localPos = rotZ * rotY * rotX * (pos - shipPos) / boatScale;
         float boatDist = sdfSpeedBoat(localPos).x;
         if (boatDist < 0.0){
             return 9999.9;
+        }
+        // if the waves height almost nearly matches the ray height, assume its a hit and return the hit distance
+        if(height + 0.01 > pos.y)
+        {
+            return distance(pos, camera);
         }
         // iterate forwards according to the height mismatch
         pos += dir * (pos.y - height);
@@ -610,7 +610,9 @@ float foamFromBoat(vec3 worldPos, vec3 boatPos, vec2 boatDir)
     float front = dot(dir, boatDir);
     float side  = dot(dir, vec2(-boatDir.y, boatDir.x));
     float vAngle = radians(20.0);  
+    // Mask to limit foam -20 degrees to 20 degrees behind the boat
     float angleMask = 1.0 - smoothstep(-1.0, -cos(vAngle), front);
+    // Mask to limit foam strongest at centerline, fading to sides
     float sideMask  = 1.0 - abs(side);
     float tailMask  = angleMask * sideMask;
     // Foam area depends on boat speed --- larger speed = longer foam tail
@@ -758,8 +760,8 @@ void main()
     float foam = foamFromBoat(waterHitPos, shipPos, vec2(cos(shipRotation+PI/2.0), sin(shipRotation+PI/2.0)));
     foam += foamFromBoat(waterHitPos, MODEL_BOAT_POSITION, vec2(cos(shipRotation), sin(shipRotation)));
     vec3 foamColor = vec3(0.92f, 0.95f, 0.97f);
-    float foamIntensity = clamp(foam * 5.5, 0.0, 10.0);
-    float sunLit = max(dot(N, normalize(SUN_DIR)), 0.0);
+    float foamIntensity = clamp(foam, 0.0, 1.0);
+    float sunLit = max(dot(N, normalize(waterHitPos - SUN_DIR)), 0.0);
     foamIntensity *= mix(0.4, 1.0, sunLit);
     vec3 C = fresnel * reflection + scattering;
     C = mix(C, foamColor, foamIntensity);
