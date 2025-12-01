@@ -357,10 +357,10 @@ float boatWake(vec2 p, vec2 boatPos, float boatRot, float speed)
 {
     vec2 d = p - boatPos;
     float dist = length(d);
-    float boatAngle = boatRot - PI / 2.0; // boat direction
+    float boatAngle = boatRot + PI / 2.0; // boat direction
     vec2 forward = vec2(cos(boatAngle), sin(boatAngle));
     // v wake
-    float adiff = acos(dot(normalize(d), forward));
+    float adiff = acos(dot(normalize(d), -forward));
     float v = kelvinWaveField(dist, adiff, speed);
     // Bow wave
     float front = dot(normalize(d), forward);
@@ -369,7 +369,7 @@ float boatWake(vec2 p, vec2 boatPos, float boatRot, float speed)
     float bow = bowMask * exp(-dist * (3.0 / range)) * 0.25;
     // Propeller wash
     float tailMask = 1.0 - front;
-    float prop = tailMask * exp(-dist * (3.0 / range)) * noise(p*4.0 + iTime*3.0) * 0.2;
+    float prop = tailMask * exp(-dist * (1.8 / range)) * noise(p*4.0 + iTime*3.0) * 0.2;
 
     return v +bow + prop;
 }
