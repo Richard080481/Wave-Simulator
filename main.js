@@ -48,15 +48,9 @@ document.getElementById('waterDepth').addEventListener('input', e => {
     uniforms.waterDepth = parseFloat(e.target.value);
     document.getElementById('depthVal').textContent = uniforms.waterDepth.toFixed(1);
 });
-document.getElementById('camHeight').addEventListener('input', e => {
-    // move camera eye Y to the slider value and keep center's relative offset
-    const oldEyeY = camera.eye[1];
-    uniforms.camHeight = parseFloat(e.target.value);
-    document.getElementById('heightVal').textContent = uniforms.camHeight.toFixed(1);
-    const delta = uniforms.camHeight - oldEyeY;
-    camera.eye[1] = uniforms.camHeight;
-    camera.center[1] += delta;
-});
+// Camera height control removed from the UI — camera vertical position is controlled
+// by keyboard inputs (Space/Ctrl). The shader receives the camera's actual Y in
+// the render loop, so we keep the value in `uniforms.camHeight` in sync there.
 document.getElementById('sunRotationSpeed').addEventListener('input', e => {
     uniforms.sunRotationSpeed = parseFloat(e.target.value);
     document.getElementById('sunSpeedVal').textContent = uniforms.sunRotationSpeed.toFixed(1);
@@ -456,7 +450,7 @@ Promise.all([
     boatProgram = gl.createProgram();
     gl.attachShader(boatProgram, boatVertShader);
     gl.attachShader(boatProgram, boatFragShader);
-    gl.linkProgram(boatProgram); 
+    gl.linkProgram(boatProgram);
 
     // parse boat model
     const boatMesh = parseOBJ(boatObjText);
@@ -683,8 +677,8 @@ Promise.all([
         const invView = mat4Inverse(boatView);
         const invProj = mat4Inverse(boatProj);
         const sunDir = getSunDirection(time);
-        // camera.eye[1] is controlled by the camHeight slider initially and by keyboard
-        // vertical movement (Space / Ctrl). Do not override it here.
+        // camera.eye[1] is controlled by keyboard vertical movement (Space / Ctrl).
+        // Do not override it here; keep the shader uniform synced to camera.eye[1].
         boatView = mat4LookAt(camera.eye, camera.center, camera.up);
 
         gl.viewport(0, 0, canvas.width, canvas.height);
@@ -776,6 +770,8 @@ Promise.all([
         gl.uniform1f(gl.getUniformLocation(program, 'iTime'), time);
         gl.uniform2f(gl.getUniformLocation(program, 'iMouse'), mouseX, mouseY);
         gl.uniform1f(gl.getUniformLocation(program, 'WATER_DEPTH'), uniforms.waterDepth);
+        // Keep the shader's CAMERA_HEIGHT in sync with the camera's actual Y position
+        uniforms.camHeight = camera.eye[1];
         gl.uniform1f(gl.getUniformLocation(program, 'CAMERA_HEIGHT'), uniforms.camHeight);
         gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_RAYMARCH'), uniforms.rayIter);
         gl.uniform1i(gl.getUniformLocation(program, 'ITERATIONS_NORMAL'), uniforms.normIter);
