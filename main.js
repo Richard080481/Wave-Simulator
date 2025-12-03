@@ -5,7 +5,16 @@ gl.getExtension('EXT_frag_depth');
 // Prevent the context menu so right-click can be used for dragging
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-let resolutionScale = 1.0;
+// Detect mobile device
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (('ontouchstart' in window) || (navigator.maxTouchPoints > 0)) ||
+           (window.innerWidth <= 768);
+}
+
+const isMobile = isMobileDevice();
+
+let resolutionScale = isMobile ? 0.5 : 1.0;
 
 canvas.width = Math.max(1, Math.floor(window.innerWidth * resolutionScale));
 canvas.height = Math.max(1, Math.floor(window.innerHeight * resolutionScale));
@@ -68,6 +77,10 @@ document.getElementById('starDensity').addEventListener('input', e => {
 const resSlider = document.getElementById('resolutionScale');
 const resLabel = document.getElementById('resolutionVal');
 if (resSlider) {
+    // Set initial value for mobile
+    if (isMobile) {
+        resSlider.value = 0.5;
+    }
     resSlider.addEventListener('input', e => {
         resolutionScale = parseFloat(e.target.value);
         // Show percentage
@@ -90,8 +103,14 @@ const controlsOpenBtn = document.getElementById('controlsOpen');
 
 // Initialize reopen (gear) button visibility to match the current panel state.
 if (controlsEl && controlsOpenBtn) {
-    // If the controls panel is currently not closed, hide the reopen button.
-    controlsOpenBtn.hidden = !controlsEl.classList.contains('closed');
+    // On mobile, close controls by default
+    if (isMobile) {
+        controlsEl.classList.add('closed');
+        controlsOpenBtn.hidden = false;
+    } else {
+        // If the controls panel is currently not closed, hide the reopen button.
+        controlsOpenBtn.hidden = !controlsEl.classList.contains('closed');
+    }
 }
 if (controlsCloseBtn && controlsEl && controlsOpenBtn) {
     controlsCloseBtn.addEventListener('click', (e) => {
@@ -816,6 +835,13 @@ Promise.all([
         if (!isPaused) {
             requestAnimationFrame(animate);
         }
+    }
+
+    // Hide HUD on mobile
+    const hudLegend = document.getElementById('hudLegend');
+    if (hudLegend && isMobile) {
+        hudLegend.hidden = true;
+        hudLegend.setAttribute('aria-hidden', 'true');
     }
 
     // start the main loop

@@ -137,3 +137,10 @@ small {
 }
 .hud-legend .hud-row { margin: 3px 0; color: #ddd; }
 .hud-legend strong { color: #fff; font-weight: 700; }
+
+/* Hide HUD on mobile devices */
+@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+    .hud-legend, #hudLegend {
+        display: none !important;
+    }
+}
