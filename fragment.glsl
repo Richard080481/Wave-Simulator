@@ -4,7 +4,6 @@ precision highp float;
 uniform vec2 iResolution;
 uniform float iTime;
 uniform vec2 iMouse;
-// Drag multiplier removed from UI; use fixed constant here
 const float DRAG_MULT = 0.38;
 uniform float WATER_DEPTH;
 uniform float CAMERA_HEIGHT;
