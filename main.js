@@ -57,9 +57,6 @@ document.getElementById('waterDepth').addEventListener('input', e => {
     uniforms.waterDepth = parseFloat(e.target.value);
     document.getElementById('depthVal').textContent = uniforms.waterDepth.toFixed(1);
 });
-// Camera height control removed from the UI — camera vertical position is controlled
-// by keyboard inputs (Space/Ctrl). The shader receives the camera's actual Y in
-// the render loop, so we keep the value in `uniforms.camHeight` in sync there.
 document.getElementById('sunRotationSpeed').addEventListener('input', e => {
     uniforms.sunRotationSpeed = parseFloat(e.target.value);
     document.getElementById('sunSpeedVal').textContent = uniforms.sunRotationSpeed.toFixed(1);
@@ -130,8 +127,6 @@ if (controlsCloseBtn && controlsEl && controlsOpenBtn) {
 
     // Allow Escape to close the controls if focused anywhere
     window.addEventListener('keydown', (e) => {
-        // Prevent browser tab/window shortcuts (Ctrl/Cmd+W) from closing the page
-        // and treat the key as forward movement inside the app when appropriate.
         const ae = document.activeElement;
         const isTypingNow = (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable));
         if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyW' || e.key === 'w' || e.key === 'W')) {
